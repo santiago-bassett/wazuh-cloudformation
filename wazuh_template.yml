@@ -1,0 +1,314 @@
+AWSTemplateFormatVersion: 2010-09-09
+Mappings:
+  RegionMap:
+    us-east-1:
+      HVM64: ami-0ff8a91507f77f867
+    us-west-1:
+      HVM64: ami-0bdb828fd58c52235
+    eu-west-1:
+      HVM64: ami-047bb4163c506cd98
+    ap-southeast-1:
+      HVM64: ami-08569b978cc4dfa10
+    ap-northeast-1:
+      HVM64: ami-06cd52961ce9f0d85
+Parameters:
+  AvailabilityZone:
+    Description: Select an availability zone for the VPC
+    Type: 'List<AWS::EC2::AvailabilityZone::Name>'
+  KeyPairName:
+    Description: Existing EC2 key pair for SSH access
+    Type: 'AWS::EC2::KeyPair::KeyName'
+  WazuhVpc:
+    Type: 'AWS::EC2::VPC::Id'
+  SubnetElastic:
+    Type: 'AWS::EC2::Subnet::Id'
+    Properties:
+      VpcId: WazuhVpc
+  SubnetWazuh:
+    Type: 'AWS::EC2::Subnet::Id'
+    Properties:
+      VpcId: WazuhVpc
+  WazuhInstanceType:
+    AllowedValues:
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+    ConstraintDescription: Must contain valid instance type
+    Default: m5.large
+    Description: Type of EC2 instance for Wazuh instance
+    Type: String
+  ElasticInstanceType:
+    AllowedValues:
+      - i3.large
+      - i3.xlarge
+      - i3.2xlarge
+    ConstraintDescription: Must contain valid instance type
+    Default: m5.large
+    Description: Type of EC2 instance for Elastic instance
+    Type: String
+  KibanaAdminUsername:
+    Default: admin
+    Description: Admin username for Kibana access
+    Type: String
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: Only alphanumeric characters
+  KibanaAdminPassword:
+    Description: Admin password for Kibana access
+    NoEcho: 'True'
+    Type: String
+    MinLength: '1'
+    MaxLength: '48'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: Only alphanumeric characters
+  KibanaPort:
+    Default: '443'
+    Description: Port for Kibana WUI
+    Type: String
+  WazuhApiAdminUsername:
+    Default: admin
+    Description: Admin username for Wazuh API
+    Type: String
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: Only alphanumeric characters
+  WazuhApiAdminPassword:
+    Description: Admin password for Wazuh API
+    NoEcho: 'True'
+    Type: String
+    MinLength: '1'
+    MaxLength: '48'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: Only alphanumeric characters
+  WazuhServerPort:
+    Default: '1514'
+    Description: Port for agents connection with Wazuh server
+    Type: String
+  WazuhRegistrationPort:
+    Default: '1515'
+    Description: Port for agents registration with Wazuh server
+    Type: String
+  WazuhAPIPort:
+    Default: '55000'
+    Description: Port for Wazuh server API
+    Type: String
+Resources:
+  ElasticSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Elasticsearch security group
+      VpcId: !Ref WazuhVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 9200
+          ToPort: 9400
+          CidrIp: 0.0.0.0/0
+  KibanaSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Kibana security group
+      VpcId: !Ref WazuhVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 9200
+          ToPort: 9400
+          CidrIp: 0.0.0.0/0
+  WazuhSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: Kibana security group
+      VpcId: !Ref WazuhVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 1514
+          ToPort: 1515
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 55000
+          ToPort: 55000
+          CidrIp: 0.0.0.0/0
+  ElbElasticSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: ELB Elasticsearch security group
+      VpcId: !Ref WazuhVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 9200
+          ToPort: 9200
+          CidrIp: 0.0.0.0/0
+  ElbWazuhSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: ELB Wazuh security group
+      VpcId: !Ref WazuhVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 1514
+          ToPort: 1514
+          CidrIp: 0.0.0.0/0
+  ElbElastic:
+    Type: 'AWS::ElasticLoadBalancing::LoadBalancer'
+    Properties:
+      LoadBalancerName: !Sub '${AWS::StackName}'
+      Scheme: internal
+      Subnets:
+        - !Ref SubnetElastic
+      SecurityGroups:
+        - !Ref ElbElasticSecurityGroup
+      HealthCheck:
+        Target: !Join 
+          - ''
+          - - 'HTTP:'
+            - '9200'
+            - /_cluster/health
+        HealthyThreshold: '3'
+        UnhealthyThreshold: '5'
+        Interval: '60'
+        Timeout: '5'
+      Listeners:
+        - LoadBalancerPort: '9200'
+          InstancePort: '9200'
+          Protocol: TCP
+  ElasticRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+                - cloudformation.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Sub '${AWS::StackName}-GetCloudformation'
+          PolicyDocument:
+            Statement:
+              - Action:
+                  - 'cloudformation:DescribeStack*'
+                  - 'cloudformation:DescribeStackResource*'
+                  - 'cloudformation:List*'
+                Resource: '*'
+                Effect: Allow
+        - PolicyName: !Sub '${AWS::StackName}-DescribeInstances'
+          PolicyDocument:
+            Statement:
+              - Action:
+                  - 'ec2:DescribeInstances'
+                Resource: '*'
+                Effect: Allow
+  ElasticInstanceProfile:
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties:
+      Roles:
+        - !Ref ElasticRole
+  ElasticAutoScalingGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref SubnetElastic
+      HealthCheckGracePeriod: '600'
+      HealthCheckType: EC2
+      LaunchConfigurationName: !Ref ElasticLaunchConfiguration
+      MinSize: '3'
+      MaxSize: '6'
+      DesiredCapacity: '3'
+      LoadBalancerNames:
+        - !Ref ElbElastic
+      Tags:
+        - Key: Name
+          Value: WazuhElasticCluster
+          PropagateAtLaunch: true
+        - Key: Creator
+          Value: !Ref KeyPairName
+          PropagateAtLaunch: true
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: '3'
+  ElasticLaunchConfiguration:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Properties:
+      ImageId: !FindInMap 
+        - RegionMap
+        - !Ref 'AWS::Region'
+        - HVM64
+      InstanceType: !Ref ElasticInstanceType
+      IamInstanceProfile: !Ref ElasticInstanceProfile
+      KeyName: !Ref KeyPairName
+      SecurityGroups:
+        - !Ref ElasticSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 100
+            VolumeType: gp2
+      UserData: !Base64 
+        'Fn::Sub':
+          write_files:
+            - path: /etc/elasticsearch/elasticsearch.yml
+              content: |
+                cluster.name: wazuh_elastic
+                path.data: /mnt/ephemeral/elasticsearch/lib
+                path.logs: /mnt/ephemeral/elasticsearch/log
+                bootstrap.memory_lock: true
+                network.host: ["0.0.0.0"]
+                discovery.zen.minimum_master_nodes: 2
+                cloud.aws.region: ${AWS::Region}
+                discovery.zen.hosts_provider: ec2
+                discovery.ec2.groups: ${ElasticSecurityGroup}
+                discovery.ec2.host_type: private_ip
+              permissions: '0644'
+          runcmd:
+            - >-
+              curl -so /tmp/wazuh_cf_elastic.sh
+              "https://raw.githubusercontent.com/santiago-bassett/wazuh-cloudformation/master/elastic/wazuh_cf_elastic.sh"
+            - chmod +x /tmp/wazuh_cf_elastic.sh
+            - /tmp/wazuh_cf_elastic.sh
+  CpuUtilization:
+    Type: 'AWS::AutoScaling::ScalingPolicy'
+    Properties:
+      AutoScalingGroupName: !Ref ElasticAutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        TargetValue: 70
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+  Outputs:
+    ElasticAutoScalingGroup:
+      Value: !Ref ElasticAutoScalingGroup
+    ElasticsearchUrl:
+      Description: The URL to check the ElasticSearch cluster health
+      Value: !Join 
+        - ''
+        - - 'http://'
+          - !GetAtt 
+            - ElbElastic
+            - DNSName
+          - /_cluster/health
+    ElasticSecurityGroup:
+      Description: Auto-discovery security group for Elasticsearch
+      Value: !Ref ElasticSecurityGroup
