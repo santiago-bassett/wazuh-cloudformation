@@ -97,7 +97,6 @@ sed -i "s/-Xmx16g/-Xms${ram}g/" /etc/elasticsearch/jvm.options
 
 # Starting Elasticsearch
 service elasticsearch start
-sleep 60
 
 #Installing Logstash
 yum -y install logstash-${elastic_release}
