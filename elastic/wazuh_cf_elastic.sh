@@ -1,0 +1,148 @@
+#!/bin/bash
+# Install Elastic data node 
+# Support for Amazon Linux
+
+set -exf
+
+elastic_release="6.4.2"
+
+# Check if running as root
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root"
+   exit 1
+fi
+
+# Mounting ephemeral partition
+mkdir /mnt/ephemeral
+mkfs -t ext4 /dev/nvme0n1
+mount /dev/nvme0n1 /mnt/ephemeral
+echo "/dev/nvme0n1 /mnt/ephemeral ext4 defaults,nofail 0 2" | tee -a /etc/fstab
+
+# Downloading and installing JRE
+url_jre="http://download.oracle.com/otn-pub/java/jdk/8u181-b13/96a7b8442fe848ef90c96a2fad6ed6d1/jre-8u181-linux-x64.rpm"
+jre_rpm="/tmp/jre-8-linux-x64.rpm"
+curl -Lo ${jre_rpm} --header "Cookie: oraclelicense=accept-securebackup-cookie" ${url_jre}
+rpm -qlp ${jre_rpm} > /dev/null 2>&1 || $(echo "Unable to download JRE. Exiting." && exit 1)
+yum -y localinstall ${jre_rpm} && rm -f ${jre_rpm}
+
+# Configuring Elastic repository
+rpm --import https://packages.elastic.co/GPG-KEY-elasticsearch
+cat > /etc/yum.repos.d/elastic.repo << 'EOF'
+[elasticsearch-6.x]
+name=Elasticsearch repository for 6.x packages
+baseurl=https://artifacts.elastic.co/packages/6.x/yum
+gpgcheck=1
+gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
+enabled=1
+autorefresh=1
+type=rpm-md
+EOF
+
+# Installing Elasticsearch
+yum -y install elasticsearch-${elastic_release}
+chkconfig --add elasticsearch
+
+# Installing Elasticsearch plugin for EC2
+/usr/share/elasticsearch/bin/elasticsearch-plugin install discovery-ec2
+
+# Creating data and logs directories
+mkdir -p /mnt/ephemeral/elasticsearch/lib
+mkdir -p /mnt/ephemeral/elasticsearch/log
+chown -R elasticsearch:elasticsearch /mnt/ephemeral/elasticsearch
+
+# Configuration file created by AWS Cloudformation template
+# Because of it we set the right owner/group for the file
+chown elasticsearch:elasticsearch /etc/elasticsearch/elasticsearch.yml
+
+# Configuring jvm.options
+cat > /etc/elasticsearch/jvm.options << 'EOF'
+-Xms16g
+-Xmx16g
+-XX:+UseConcMarkSweepGC
+-XX:CMSInitiatingOccupancyFraction=75
+-XX:+UseCMSInitiatingOccupancyOnly
+-XX:+AlwaysPreTouch
+-Xss1m
+-Djava.awt.headless=true
+-Dfile.encoding=UTF-8
+-Djna.nosys=true
+-XX:-OmitStackTraceInFastThrow
+-Dio.netty.noUnsafe=true
+-Dio.netty.noKeySetOptimization=true
+-Dio.netty.recycler.maxCapacityPerThread=0
+-Dlog4j.shutdownHookEnabled=false
+-Dlog4j2.disable.jmx=true
+-Djava.io.tmpdir=${ES_TMPDIR}
+-XX:+HeapDumpOnOutOfMemoryError
+-XX:HeapDumpPath=/var/lib/elasticsearch
+-XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log
+8:-XX:+PrintGCDetails
+8:-XX:+PrintGCDateStamps
+8:-XX:+PrintTenuringDistribution
+8:-XX:+PrintGCApplicationStoppedTime
+8:-Xloggc:/var/log/elasticsearch/gc.log
+8:-XX:+UseGCLogFileRotation
+8:-XX:NumberOfGCLogFiles=32
+8:-XX:GCLogFileSize=64m
+9-:-Xlog:gc*,gc+age=trace,safepoint:file=/var/log/elasticsearch/gc.log:utctime,pid,tags:filecount=32,filesize=64m
+9-:-Djava.locale.providers=COMPAT
+EOF
+
+# Configuring RAM memory in jvm.options
+ram_gb=$(free -g | awk '/^Mem:/{print $2}')
+ram=$(( ${ram_gb} / 2 ))
+if [ $ram -eq "0" ]; then ram=1; fi
+sed -i "s/-Xms16g/-Xms${ram}g/" /etc/elasticsearch/jvm.options
+sed -i "s/-Xmx16g/-Xms${ram}g/" /etc/elasticsearch/jvm.options
+
+# Starting Elasticsearch
+service elasticsearch start
+sleep 60
+
+#Installing Logstash
+yum -y install logstash-${elastic_release}
+chkconfig --add logstash
+
+#Local configuration for Logstash (Wazuh manager in the same box)
+curl -so /etc/logstash/conf.d/01-wazuh.conf "https://raw.githubusercontent.com/wazuh/wazuh/${repo_branch}/extensions/logstash/01-wazuh-remote.conf"
+
+# Creating data and logs directories
+mkdir -p /mnt/ephemeral/logstash/lib
+mkdir -p /mnt/ephemeral/logstash/log
+chown -R logstash:logstash /mnt/ephemeral/logstash
+
+# Configuring logstash.yml
+cat > /etc/logstash/logstash.yml << 'EOF'
+path.data: /mnt/ephemeral/logstash/lib
+path.logs: /mnt/ephemeral/logstash/log
+path.config: /etc/logstash/conf.d/*.conf
+EOF
+
+# Configuring jvm.options
+cat > /etc/logstash/jvm.options << 'EOF'
+-Xms2g
+-Xmx2g
+-XX:+UseParNewGC
+-XX:+UseConcMarkSweepGC
+-XX:CMSInitiatingOccupancyFraction=75
+-XX:+UseCMSInitiatingOccupancyOnly
+-Djava.awt.headless=true
+-Dfile.encoding=UTF-8
+-Djruby.compile.invokedynamic=true
+-Djruby.jit.threshold=0
+-XX:+HeapDumpOnOutOfMemoryError
+-Djava.security.egd=file:/dev/urandom
+EOF
+
+# Configuring RAM memory in jvm.options
+ram_gb=$(free -g | awk '/^Mem:/{print $2}')
+ram=$(( ${ram_gb} / 4 ))
+if [ $ram -eq "0" ]; then ram=1; fi
+sed -i "s/-Xms2g/-Xms${ram}g/" /etc/logstash/jvm.options
+sed -i "s/-Xmx2g/-Xms${ram}g/" /etc/logstash/jvm.options
+
+# Starting Logstash
+service logstash start
+
+# Disable repositories
+sed -i "s/^enabled=1/enabled=0/" /etc/yum.repos.d/elastic.repo
