@@ -22,12 +22,8 @@ Parameters:
     Type: 'AWS::EC2::VPC::Id'
   SubnetElastic:
     Type: 'AWS::EC2::Subnet::Id'
-    Properties:
-      VpcId: WazuhVpc
   SubnetWazuh:
     Type: 'AWS::EC2::Subnet::Id'
-    Properties:
-      VpcId: WazuhVpc
   WazuhInstanceType:
     AllowedValues:
       - m5.large
@@ -43,7 +39,7 @@ Parameters:
       - i3.xlarge
       - i3.2xlarge
     ConstraintDescription: Must contain valid instance type
-    Default: m5.large
+    Default: i3.large
     Description: Type of EC2 instance for Elastic instance
     Type: String
   KibanaAdminUsername:
@@ -267,7 +263,7 @@ Resources:
             VolumeSize: 100
             VolumeType: gp2
       UserData: !Base64 
-        'Fn::Sub':
+        'Fn::Sub': |
           write_files:
             - path: /etc/elasticsearch/elasticsearch.yml
               content: |
@@ -297,18 +293,18 @@ Resources:
         TargetValue: 70
         PredefinedMetricSpecification:
           PredefinedMetricType: ASGAverageCPUUtilization
-  Outputs:
-    ElasticAutoScalingGroup:
-      Value: !Ref ElasticAutoScalingGroup
-    ElasticsearchUrl:
-      Description: The URL to check the ElasticSearch cluster health
-      Value: !Join 
-        - ''
-        - - 'http://'
-          - !GetAtt 
-            - ElbElastic
-            - DNSName
-          - /_cluster/health
-    ElasticSecurityGroup:
-      Description: Auto-discovery security group for Elasticsearch
-      Value: !Ref ElasticSecurityGroup
+Outputs:
+  ElasticAutoScalingGroup:
+    Value: !Ref ElasticAutoScalingGroup
+  ElasticsearchUrl:
+    Description: The URL to check the ElasticSearch cluster health
+    Value: !Join 
+      - ''
+      - - 'http://'
+        - !GetAtt 
+          - ElbElastic
+          - DNSName
+        - /_cluster/health
+  ElasticSecurityGroup:
+    Description: Auto-discovery security group for Elasticsearch
+    Value: !Ref ElasticSecurityGroup
