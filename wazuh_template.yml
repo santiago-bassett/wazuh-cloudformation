@@ -393,7 +393,7 @@ Resources:
       IamInstanceProfile: !Ref ElasticInstanceProfile
       KeyName: !Ref KeyPairName
       SubnetId: !Ref SubnetElastic
-      SecurityGroups:
+      SecurityGroupsIds:
         - !Ref KibanaSecurityGroup
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
