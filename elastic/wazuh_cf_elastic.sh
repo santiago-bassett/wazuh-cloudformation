@@ -52,6 +52,7 @@ chown -R elasticsearch:elasticsearch /mnt/ephemeral/elasticsearch
 
 # Configuration file created by AWS Cloudformation template
 # Because of it we set the right owner/group for the file
+mv /tmp/elasticsearch.yml.cloudfront /etc/elasticsearch/elasticsearch.yml
 chown elasticsearch:elasticsearch /etc/elasticsearch/elasticsearch.yml
 
 # Configuring jvm.options
