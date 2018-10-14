@@ -104,7 +104,7 @@ Parameters:
     Default: '1515'
     Description: Port for agents registration with Wazuh server
     Type: String
-  WazuhAPIPort:
+  WazuhApiPort:
     Default: '55000'
     Description: Port for Wazuh server API
     Type: String
@@ -351,6 +351,9 @@ Resources:
                 KibanaAdminUsername: ${KibanaAdminUsername}
                 KibanaAdminPassword: ${KibanaAdminPassword}
                 KibanaPort: ${KibanaPort}
+                WazuhApiAdminUsername: ${WazuhApiAdminUsername}
+                WazuhApiAdminPasswod: ${WazuhApiAdminPassword}
+                WazuhApiPort: ${WazuhApiPort}
               mode: '000644'
               owner: root
               group: root
