@@ -96,6 +96,10 @@ if [ $ram -eq "0" ]; then ram=1; fi
 sed -i "s/-Xms16g/-Xms${ram}g/" /etc/elasticsearch/jvm.options
 sed -i "s/-Xmx16g/-Xms${ram}g/" /etc/elasticsearch/jvm.options
 
+# Allowing unlimited memory allocation
+echo 'elasticsearch soft memlock unlimited' >> /etc/security/limits.conf
+echo 'elasticsearch hard memlock unlimited' >> /etc/security/limits.conf
+
 # Starting Elasticsearch
 service elasticsearch start
 
