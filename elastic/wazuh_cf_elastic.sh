@@ -43,7 +43,7 @@ yum -y install elasticsearch-${elastic_release}
 chkconfig --add elasticsearch
 
 # Installing Elasticsearch plugin for EC2
-/usr/share/elasticsearch/bin/elasticsearch-plugin install discovery-ec2
+/usr/share/elasticsearch/bin/elasticsearch-plugin install --batch discovery-ec2
 
 # Creating data and logs directories
 mkdir -p /mnt/ephemeral/elasticsearch/lib
