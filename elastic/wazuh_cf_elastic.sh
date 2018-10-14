@@ -4,7 +4,8 @@
 
 set -exf
 
-elastic_release="6.4.2"
+elastic_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f1)
+wazuh_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f2)
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
@@ -27,10 +28,11 @@ yum -y localinstall ${jre_rpm} && rm -f ${jre_rpm}
 
 # Configuring Elastic repository
 rpm --import https://packages.elastic.co/GPG-KEY-elasticsearch
-cat > /etc/yum.repos.d/elastic.repo << 'EOF'
-[elasticsearch-6.x]
-name=Elasticsearch repository for 6.x packages
-baseurl=https://artifacts.elastic.co/packages/6.x/yum
+elastic_major_version=$(echo ${elastic_version} | cut -d'.' -f1)
+cat > /etc/yum.repos.d/elastic.repo << EOF
+[elasticsearch-${elastic_major_version}.x]
+name=Elasticsearch repository for ${elastic_major_version}.x packages
+baseurl=https://artifacts.elastic.co/packages/${elastic_major_version}.x/yum
 gpgcheck=1
 gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
 enabled=1
@@ -39,7 +41,7 @@ type=rpm-md
 EOF
 
 # Installing Elasticsearch
-yum -y install elasticsearch-${elastic_release}
+yum -y install elasticsearch-${elastic_version}
 chkconfig --add elasticsearch
 
 # Installing Elasticsearch plugin for EC2
@@ -104,11 +106,11 @@ echo 'elasticsearch hard memlock unlimited' >> /etc/security/limits.conf
 service elasticsearch start
 
 #Installing Logstash
-yum -y install logstash-${elastic_release}
+yum -y install logstash-${elastic_version}
 chkconfig --add logstash
 
 #Local configuration for Logstash (Wazuh manager in the same box)
-curl -so /etc/logstash/conf.d/01-wazuh.conf "https://raw.githubusercontent.com/wazuh/wazuh/${repo_branch}/extensions/logstash/01-wazuh-remote.conf"
+curl -so /etc/logstash/conf.d/01-wazuh.conf "https://raw.githubusercontent.com/wazuh/wazuh/v${wazuh_version}/extensions/logstash/01-wazuh-remote.conf"
 
 # Creating data and logs directories
 mkdir -p /mnt/ephemeral/logstash/lib
