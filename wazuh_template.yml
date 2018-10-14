@@ -321,7 +321,6 @@ Resources:
       InstanceType: !Ref ElasticInstanceType
       IamInstanceProfile: !Ref ElasticInstanceProfile
       KeyName: !Ref KeyPairName
-      SubnetId: !Ref SubnetElastic
       SecurityGroups:
         - !Ref ElasticSecurityGroup
       BlockDeviceMappings:
