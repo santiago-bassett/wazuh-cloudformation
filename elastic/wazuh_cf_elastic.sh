@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install Elastic data node 
+# Install Elastic data node using Cloudformation template
 # Support for Amazon Linux
 
 set -exf
@@ -54,7 +54,7 @@ chown -R elasticsearch:elasticsearch /mnt/ephemeral/elasticsearch
 
 # Configuration file created by AWS Cloudformation template
 # Because of it we set the right owner/group for the file
-mv -f /tmp/elasticsearch.yml.cloudfront /etc/elasticsearch/elasticsearch.yml
+mv -f /tmp/wazuh_cf_elasticsearch.yml /etc/elasticsearch/elasticsearch.yml
 chown elasticsearch:elasticsearch /etc/elasticsearch/elasticsearch.yml
 
 # Configuring jvm.options
