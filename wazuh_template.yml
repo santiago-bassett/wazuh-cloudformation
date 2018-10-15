@@ -382,7 +382,7 @@ Resources:
                 WazuhApiAdminUsername: ${WazuhApiAdminUsername}
                 WazuhApiAdminPassword: ${WazuhApiAdminPassword}
                 WazuhApiPort: ${WazuhApiPort}
-                WazuhMasterIP: ${WazuhMasterInstanceEth0}
+                WazuhMasterIP: ${WazuhMasterInstance.PrivateIp}
                 ElbElasticDNS: ${ElbElastic.DNSName}
                 ElbLogstashDNS: ${ElbLogstash.DNSName}
               mode: '000600'
