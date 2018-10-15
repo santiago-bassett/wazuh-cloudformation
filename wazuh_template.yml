@@ -354,7 +354,8 @@ Resources:
                 WazuhApiAdminPasswod: ${WazuhApiAdminPassword}
                 WazuhApiPort: ${WazuhApiPort}
                 ElbElasticDNS1: ${ElbElastic}
-                ElbElasticDNS2: !GetAtt ElbElastic.DNSName
+                ElbElasticDNS2: ${ElbElastic.DNSName}
+                ElbElasticDNS3: !GetAtt ElbElastic.DNSName
               mode: '000600'
               owner: root
               group: root

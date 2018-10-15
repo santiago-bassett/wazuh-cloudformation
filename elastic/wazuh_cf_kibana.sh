@@ -121,6 +121,7 @@ openssl req -x509 -batch -nodes -days 3650 -newkey rsa:2048 -keyout /etc/kibana/
 
 # Configuring kibana.yml
 cat > /etc/kibana/kibana.yml << EOF
+elasticsearch.url: "http://${eth0_ip}:9200"
 server.port: ${kibana_port}
 server.host: "0.0.0.0"
 server.ssl.enabled: true
