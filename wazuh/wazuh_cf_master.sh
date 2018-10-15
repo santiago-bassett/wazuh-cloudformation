@@ -65,7 +65,7 @@ chkconfig --add wazuh-api
 
 # Configuring Wazuh API user and password
 cd /var/ossec/api/configuration/auth
-echo ${wazuh_api_password} | node htpasswd -ci user ${wazuh_api_user}
+node htpasswd -b -c user ${wazuh_api_user} ${wazuh_api_password}
 
 # Enable Wazuh API SSL
 api_ssl_dir="/var/ossec/api/configuration/ssl"
