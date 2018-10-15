@@ -8,6 +8,10 @@ elastic_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' 
 wazuh_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f2)
 kibana_port=$(cat /tmp/wazuh_cf_settings | grep '^KibanaPort:' | cut -d' ' -f2)
 eth0_ip=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2  | cut -d' ' -f1)
+wazuh_master_ip=$(cat /tmp/wazuh_cf_settings | grep '^WazuhMasterIP:' | cut -d' ' -f2)
+wazuh_api_user=$(cat /tmp/wazuh_cf_settings | grep '^WazuhApiAdminUsername:' | cut -d' ' -f2)
+wazuh_api_password=$(cat /tmp/wazuh_cf_settings | grep '^WazuhApiAdminPassword:' | cut -d' ' -f2)
+wazuh_api_port=$(cat /tmp/wazuh_cf_settings | grep '^WazuhApiPort:' | cut -d' ' -f2)
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
@@ -145,6 +149,42 @@ EOF
 
 # Installing Wazuh plugin for Kibana
 /usr/share/kibana/bin/kibana-plugin install  https://packages.wazuh.com/wazuhapp/wazuhapp-${wazuh_version}_${elastic_version}.zip
+cat >> /usr/share/kibana/plugins/wazuh/config.yml << 'EOF'
+wazuh.shards: 1
+wazuh.replicas: 1
+wazuh-version.shards: 1
+wazuh-version.replicas: 1
+wazuh.monitoring.shards: 1
+wazuh.monitoring.replicas: 1
+EOF
+
+# Configuring Wazuh API in Kibana plugin
+api_config="/tmp/api_config.json"
+api_time=$(($(date +%s%N)/1000000))
+
+cat > ${api_config} << EOF
+{
+  "api_user": "wazuh_api_user",
+  "api_password": "wazuh_api_password",
+  "url": "https://wazuh_master_ip",
+  "api_port": "wazuh_api_port",
+  "insecure": "false",
+  "component": "API",
+  "cluster_info": {
+    "manager": "wazuh-manager",
+    "cluster": "disabled",
+    "status": "disabled"
+  }
+}
+EOF
+
+sed -i "s/wazuh_api_user/${wazuh_api_user}/" ${api_config}
+sed -i "s/wazuh_api_password/${wazuh_api_password}/" ${api_config}
+sed -i "s/wazuh_master_ip/${wazuh_master_ip}/" ${api_config}
+sed -i "s/wazuh_api_port/${wazuh_api_port}/" ${api_config}
+
+curl -s -XPUT "http://${eth0_ip}:9200/.wazuh/wazuh-configuration/${api_time}" -H 'Content-Type: application/json' -d@${api_config}
+rm -f ${api_config}
 
 # Starting Kibana
 service kibana start
