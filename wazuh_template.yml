@@ -278,8 +278,8 @@ Resources:
       'AWS::CloudFormation::Init':
         configSets:
           ElasticInstallationSet:
-          - ElasticFiles
-          - ElasticInstall
+            - ElasticFiles
+            - ElasticInstall
         ElasticFiles:
           files:
             /tmp/wazuh_cf_settings:
@@ -340,8 +340,8 @@ Resources:
       'AWS::CloudFormation::Init':
         configSets:
           KibanaInstallationSet:
-          - KibanaFiles
-          - KibanaInstall
+            - KibanaFiles
+            - KibanaInstall
         KibanaFiles:
           files:
             /tmp/wazuh_cf_settings:
@@ -392,20 +392,28 @@ Resources:
       InstanceType: !Ref KibanaInstanceType
       IamInstanceProfile: !Ref ElasticInstanceProfile
       KeyName: !Ref KeyPairName
-      SubnetId: !Ref SubnetElastic
-      SecurityGroupsIds:
-        - !Ref KibanaSecurityGroup
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
           Ebs:
             VolumeSize: 100
             VolumeType: gp2
+      NetworkInterfaces:
+        - NetworkInterfaceId: !Ref KibanaInstanceEth0
+          DeviceIndex: 0
+      Tags:
+        - Key: Name
+          Value: Kibana
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash -xe
           exec > /var/log/cloudformation_installation.log 2>&1
           /opt/aws/bin/cfn-init --stack ${AWS::StackName} --resource KibanaInstance --configsets KibanaInstallationSet --region ${AWS::Region}
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource Kibana --region ${AWS::Region}
+  KibanaInstanceEth0:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      SubnetId: !Ref SubnetElastic
+      GroupSet: [!Ref 'KibanaSecurityGroup']
 Outputs:
   ElasticAutoScalingGroup:
     Value: !Ref ElasticAutoScalingGroup
