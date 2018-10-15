@@ -196,7 +196,7 @@ Resources:
   ElbElastic:
     Type: 'AWS::ElasticLoadBalancing::LoadBalancer'
     Properties:
-      LoadBalancerName: !Sub '${AWS::StackName}'
+      LoadBalancerName: !Sub '${AWS::StackName}-Elastic'
       Scheme: internal
       Subnets:
         - !Ref SubnetElastic
@@ -219,7 +219,7 @@ Resources:
   ElbLogstash:
     Type: 'AWS::ElasticLoadBalancing::LoadBalancer'
     Properties:
-      LoadBalancerName: !Sub '${AWS::StackName}'
+      LoadBalancerName: !Sub '${AWS::StackName}-Logstash'
       Scheme: internal
       Subnets:
         - !Ref SubnetElastic
