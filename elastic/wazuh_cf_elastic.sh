@@ -6,6 +6,7 @@ set -exf
 
 elastic_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f1)
 wazuh_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f2)
+eth0_ip=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2  | cut -d' ' -f1)
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
@@ -108,8 +109,9 @@ service elasticsearch start
 #Installing Logstash
 yum -y install logstash-${elastic_version}
 
-#Local configuration for Logstash (Wazuh manager in the same box)
+#Wazuh configuration for Logstash
 curl -so /etc/logstash/conf.d/01-wazuh.conf "https://raw.githubusercontent.com/wazuh/wazuh/v${wazuh_version}/extensions/logstash/01-wazuh-remote.conf"
+sed -i "s/localhost:9200/${eth0_ip}:9200/" /etc/logstash/conf.d/01-wazuh.conf
 
 # Creating data and logs directories
 mkdir -p /mnt/ephemeral/logstash/lib
