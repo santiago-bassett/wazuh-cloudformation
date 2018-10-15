@@ -380,7 +380,7 @@ Resources:
                 KibanaAdminPassword: ${KibanaAdminPassword}
                 KibanaPort: ${KibanaPort}
                 WazuhApiAdminUsername: ${WazuhApiAdminUsername}
-                WazuhApiAdminPasswod: ${WazuhApiAdminPassword}
+                WazuhApiAdminPassword: ${WazuhApiAdminPassword}
                 WazuhApiPort: ${WazuhApiPort}
                 ElbElasticDNS: ${ElbElastic.DNSName}
                 ElbLogstashDNS: ${ElbLogstash.DNSName}
@@ -461,7 +461,7 @@ Resources:
                 KibanaAdminPassword: ${KibanaAdminPassword}
                 KibanaPort: ${KibanaPort}
                 WazuhApiAdminUsername: ${WazuhApiAdminUsername}
-                WazuhApiAdminPasswod: ${WazuhApiAdminPassword}
+                WazuhApiAdminPassword: ${WazuhApiAdminPassword}
                 WazuhApiPort: ${WazuhApiPort}
                 ElbElasticDNS: ${ElbElastic.DNSName}
                 ElbLogstashDNS: ${ElbLogstash.DNSName}
