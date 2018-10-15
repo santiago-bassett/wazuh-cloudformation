@@ -173,6 +173,16 @@ Resources:
           FromPort: 9200
           ToPort: 9200
           CidrIp: 0.0.0.0/0
+  ElbLogstashSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: ELB Logstash security group
+      VpcId: !Ref WazuhVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          CidrIp: 0.0.0.0/0
   ElbWazuhSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
@@ -206,7 +216,26 @@ Resources:
         - LoadBalancerPort: '9200'
           InstancePort: '9200'
           Protocol: TCP
-  ElasticRole:
+  ElbLogstash:
+    Type: 'AWS::ElasticLoadBalancing::LoadBalancer'
+    Properties:
+      LoadBalancerName: !Sub '${AWS::StackName}'
+      Scheme: internal
+      Subnets:
+        - !Ref SubnetElastic
+      SecurityGroups:
+        - !Ref ElbLogstashSecurityGroup
+      HealthCheck:
+        Target: TCP:5000/
+        HealthyThreshold: '3'
+        UnhealthyThreshold: '5'
+        Interval: '60'
+        Timeout: '5'
+      Listeners:
+        - LoadBalancerPort: '5000'
+          InstancePort: '5000'
+          Protocol: TCP
+  InstanceRole:
     Type: 'AWS::IAM::Role'
     Properties:
       AssumeRolePolicyDocument:
@@ -235,11 +264,11 @@ Resources:
                   - 'ec2:DescribeInstances'
                 Resource: '*'
                 Effect: Allow
-  ElasticInstanceProfile:
+  InstanceProfile:
     Type: 'AWS::IAM::InstanceProfile'
     Properties:
       Roles:
-        - !Ref ElasticRole
+        - !Ref InstanceRole
   ElasticAutoScalingGroup:
     Type: 'AWS::AutoScaling::AutoScalingGroup'
     Properties:
@@ -253,6 +282,7 @@ Resources:
       DesiredCapacity: '3'
       LoadBalancerNames:
         - !Ref ElbElastic
+        - !Ref ElbLogstash
       Tags:
         - Key: Name
           Value: WazuhElasticCluster
@@ -319,7 +349,7 @@ Resources:
         - !Ref 'AWS::Region'
         - HVM64
       InstanceType: !Ref ElasticInstanceType
-      IamInstanceProfile: !Ref ElasticInstanceProfile
+      IamInstanceProfile: !Ref InstanceProfile
       KeyName: !Ref KeyPairName
       SecurityGroups:
         - !Ref ElasticSecurityGroup
@@ -352,9 +382,8 @@ Resources:
                 WazuhApiAdminUsername: ${WazuhApiAdminUsername}
                 WazuhApiAdminPasswod: ${WazuhApiAdminPassword}
                 WazuhApiPort: ${WazuhApiPort}
-                ElbElasticDNS1: ${ElbElastic}
-                ElbElasticDNS2: ${ElbElastic.DNSName}
-                ElbElasticDNS3: !GetAtt ElbElastic.DNSName
+                ElbElasticDNS: ${ElbElastic.DNSName}
+                ElbLogstashDNS: ${ElbLogstash.DNSName}
               mode: '000600'
               owner: root
               group: root
@@ -392,7 +421,7 @@ Resources:
         - Ref: "AWS::Region"
         - HVM64
       InstanceType: !Ref KibanaInstanceType
-      IamInstanceProfile: !Ref ElasticInstanceProfile
+      IamInstanceProfile: !Ref InstanceProfile
       KeyName: !Ref KeyPairName
       BlockDeviceMappings:
         - DeviceName: /dev/xvda
@@ -404,7 +433,7 @@ Resources:
           DeviceIndex: 0
       Tags:
         - Key: Name
-          Value: Kibana
+          Value: WazuhKibana
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash -xe
@@ -415,6 +444,69 @@ Resources:
     Properties:
       SubnetId: !Ref SubnetElastic
       GroupSet: [!Ref 'KibanaSecurityGroup']
+  WazuhMasterInstance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      'AWS::CloudFormation::Init':
+        configSets:
+          WazuhInstallationSet:
+            - WazuhFiles
+            - WazuhInstall
+        WazuhFiles:
+          files:
+            /tmp/wazuh_cf_settings:
+              content: !Sub |
+                Elastic_Wazuh: ${ElasticWazuhVersion}
+                KibanaAdminUsername: ${KibanaAdminUsername}
+                KibanaAdminPassword: ${KibanaAdminPassword}
+                KibanaPort: ${KibanaPort}
+                WazuhApiAdminUsername: ${WazuhApiAdminUsername}
+                WazuhApiAdminPasswod: ${WazuhApiAdminPassword}
+                WazuhApiPort: ${WazuhApiPort}
+                ElbElasticDNS: ${ElbElastic.DNSName}
+                ElbLogstashDNS: ${ElbLogstash.DNSName}
+              mode: '000600'
+              owner: root
+              group: root
+            /tmp/wazuh_cf_master.sh:
+              source: !Sub >-
+                https://raw.githubusercontent.com/santiago-bassett/wazuh-cloudformation/master/wazuh/wazuh_cf_master.sh
+              mode: '000700'
+              owner: root
+              group: root
+        WazuhInstall:
+          commands:
+            01_RunInstallationScript:
+              command: /tmp/wazuh_cf_master.sh
+    Properties:
+      ImageId: !FindInMap
+        - "RegionMap"
+        - Ref: "AWS::Region"
+        - HVM64
+      InstanceType: !Ref WazuhInstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      KeyName: !Ref KeyPairName
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 200
+            VolumeType: gp2
+      NetworkInterfaces:
+        - NetworkInterfaceId: !Ref WazuhMasterInstanceEth0
+          DeviceIndex: 0
+      Tags:
+        - Key: Name
+          Value: WazuhMaster
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          /opt/aws/bin/cfn-init --stack ${AWS::StackName} --resource KibanaInstance --configsets KibanaInstallationSet --region ${AWS::Region}
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource Kibana --region ${AWS::Region}
+  WazuhMasterInstanceEth0:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      SubnetId: !Ref SubnetWazuh
+      GroupSet: [!Ref 'WazuhSecurityGroup']
 Outputs:
   ElasticAutoScalingGroup:
     Value: !Ref ElasticAutoScalingGroup
