@@ -383,7 +383,7 @@ Resources:
         KibanaInstall:
           commands:
             01_RunInstallationScript:
-              command: /tmp/wazuh_cf_elastic.sh
+              command: /tmp/wazuh_cf_kibana.sh
     Properties: 
       ImageId: !FindInMap
         - "RegionMap"
