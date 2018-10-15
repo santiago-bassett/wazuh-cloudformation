@@ -226,7 +226,7 @@ Resources:
       SecurityGroups:
         - !Ref ElbLogstashSecurityGroup
       HealthCheck:
-        Target: TCP:5000/
+        Target: TCP:5000
         HealthyThreshold: '3'
         UnhealthyThreshold: '5'
         Interval: '60'
