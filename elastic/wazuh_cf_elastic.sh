@@ -107,7 +107,6 @@ service elasticsearch start
 
 #Installing Logstash
 yum -y install logstash-${elastic_version}
-chkconfig --add logstash
 
 #Local configuration for Logstash (Wazuh manager in the same box)
 curl -so /etc/logstash/conf.d/01-wazuh.conf "https://raw.githubusercontent.com/wazuh/wazuh/v${wazuh_version}/extensions/logstash/01-wazuh-remote.conf"
@@ -148,7 +147,7 @@ sed -i "s/-Xms2g/-Xms${ram}g/" /etc/logstash/jvm.options
 sed -i "s/-Xmx2g/-Xms${ram}g/" /etc/logstash/jvm.options
 
 # Starting Logstash
-service logstash start
+initctl start logstash
 
 # Disable repositories
 sed -i "s/^enabled=1/enabled=0/" /etc/yum.repos.d/elastic.repo
