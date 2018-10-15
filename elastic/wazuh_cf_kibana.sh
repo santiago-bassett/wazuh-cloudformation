@@ -7,6 +7,7 @@ set -exf
 elastic_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f1)
 wazuh_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f2)
 kibana_port=$(cat /tmp/wazuh_cf_settings | grep '^KibanaPort:' | cut -d' ' -f2)
+eth0_ip=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2  | cut -d' ' -f1)
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
@@ -97,7 +98,6 @@ service elasticsearch start
 sleep 90
 
 # Loading and tuning Wazuh alerts template
-eth0_ip=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2)
 url_alerts_template="https://raw.githubusercontent.com/wazuh/wazuh/v${wazuh_version}/extensions/elasticsearch/wazuh-elastic6-template-alerts.json"
 alerts_template="/tmp/wazuh-elastic6-template-alerts.json"
 curl -Lo ${alerts_template} ${url_alerts_template}
