@@ -97,22 +97,24 @@ service elasticsearch start
 sleep 90
 
 # Loading and tuning Wazuh alerts template
+eth0_ip=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2)
 url_alerts_template="https://raw.githubusercontent.com/wazuh/wazuh/v${wazuh_version}/extensions/elasticsearch/wazuh-elastic6-template-alerts.json"
 alerts_template="/tmp/wazuh-elastic6-template-alerts.json"
 curl -Lo ${alerts_template} ${url_alerts_template}
 sed -i 's/"index.refresh_interval": "5s"/"index.refresh_interval": "5s",/' ${alerts_template}
 sed -i '/"index.refresh_interval": "5s",/ a\    "index.number_of_shards": 2,' ${alerts_template}
 sed -i '/"index.number_of_shards": 2,/ a\    "index.number_of_replicas": 1' ${alerts_template}
-curl -XPUT 'http://localhost:9200/_template/wazuh' -H 'Content-Type: application/json' -d@${alerts_template}
+curl -XPUT "http://${eth0_ip}:9200/_template/wazuh" -H 'Content-Type: application/json' -d@${alerts_template}
 
 # Inserting Wazuh alert sample
 alert_sample="/tmp/alert_sample.json"
 curl -Lo ${alert_sample} "https://raw.githubusercontent.com/wazuh/wazuh/v${wazuh_version}/extensions/elasticsearch/alert_sample.json"
-curl -XPUT "http://localhost:9200/wazuh-alerts-3.x-"`date +%Y.%m.%d`"/wazuh/sample" -H 'Content-Type: application/json' -d@${alert_sample}
+curl -XPUT "http://${eth0_ip}:9200/wazuh-alerts-3.x-"`date +%Y.%m.%d`"/wazuh/sample" -H 'Content-Type: application/json' -d@${alert_sample}
 rm -f ${alert_sample}
 
 # Installing Kibana
 yum -y install kibana-${elastic_version}
+chkconfig --add kibana
 
 # Creating key and certificate
 openssl req -x509 -batch -nodes -days 3650 -newkey rsa:2048 -keyout /etc/kibana/kibana.key -out /etc/kibana/kibana.cert
@@ -144,7 +146,7 @@ EOF
 /usr/share/kibana/bin/kibana-plugin install  https://packages.wazuh.com/wazuhapp/wazuhapp-${wazuh_version}_${elastic_version}.zip
 
 # Starting Kibana
-systemctl start kibana
+service kibana start
 
 # Disable repositories
 sed -i "s/^enabled=1/enabled=0/" /etc/yum.repos.d/elastic.repo
