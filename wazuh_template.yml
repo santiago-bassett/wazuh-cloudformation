@@ -353,8 +353,8 @@ Resources:
                 WazuhApiAdminUsername: ${WazuhApiAdminUsername}
                 WazuhApiAdminPasswod: ${WazuhApiAdminPassword}
                 WazuhApiPort: ${WazuhApiPort}
-                ElbElasticDNS: !GetAtt ElbElastic.DNSName
-                ElbElasticPort: !GetAtt ElbElastic.Listeners.LoadBalancerPort
+                ElbElasticDNS1: ${ElbElastic}
+                ElbElasticDNS2: !GetAtt ElbElastic.DNSName
               mode: '000600'
               owner: root
               group: root
@@ -421,7 +421,7 @@ Outputs:
     Value: !Ref ElasticAutoScalingGroup
   ElasticsearchUrl:
     Description: The URL to check the ElasticSearch cluster health
-    Value: !Join ['', ['http://', !GetAtt ElbElastic.DNSName, ':', !GetAtt ElbElastic.Listeners.LoadBalancerPort, '/_cluster/health']] 
+    Value: !Join ['', ['http://', !GetAtt ElbElastic.DNSName, ':9200', '/_cluster/health']] 
   ElasticSecurityGroup:
     Description: Auto-discovery security group for Elasticsearch
     Value: !Ref ElasticSecurityGroup
