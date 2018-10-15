@@ -14,12 +14,6 @@ if [[ $EUID -ne 0 ]]; then
    exit 1
 fi
 
-# Mounting ephemeral partition
-mkdir /mnt/ephemeral
-mkfs -t ext4 /dev/nvme0n1
-mount /dev/nvme0n1 /mnt/ephemeral
-echo "/dev/nvme0n1 /mnt/ephemeral ext4 defaults,nofail 0 2" | tee -a /etc/fstab
-
 # Downloading and installing JRE
 url_jre="http://download.oracle.com/otn-pub/java/jdk/8u181-b13/96a7b8442fe848ef90c96a2fad6ed6d1/jre-8u181-linux-x64.rpm"
 jre_rpm="/tmp/jre-8-linux-x64.rpm"
@@ -47,11 +41,6 @@ chkconfig --add elasticsearch
 
 # Installing Elasticsearch plugin for EC2
 /usr/share/elasticsearch/bin/elasticsearch-plugin install --batch discovery-ec2
-
-# Creating data and logs directories
-mkdir -p /mnt/ephemeral/elasticsearch/lib
-mkdir -p /mnt/ephemeral/elasticsearch/log
-chown -R elasticsearch:elasticsearch /mnt/ephemeral/elasticsearch
 
 # Configuration file created by AWS Cloudformation template
 # Because of it we set the right owner/group for the file

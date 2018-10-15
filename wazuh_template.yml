@@ -285,7 +285,7 @@ Resources:
             /tmp/wazuh_cf_settings:
               content: !Sub |
                 Elastic_Wazuh: ${ElasticWazuhVersion}
-              mode: '000644'
+              mode: '000600'
               owner: root
               group: root
             /tmp/wazuh_cf_elasticsearch.yml:
@@ -353,14 +353,14 @@ Resources:
                 WazuhApiAdminUsername: ${WazuhApiAdminUsername}
                 WazuhApiAdminPasswod: ${WazuhApiAdminPassword}
                 WazuhApiPort: ${WazuhApiPort}
-              mode: '000644'
+              mode: '000600'
               owner: root
               group: root
             /tmp/wazuh_cf_elasticsearch.yml:
               content: !Sub |
                 cluster.name: wazuh_elastic
-                path.data: /mnt/ephemeral/elasticsearch/lib
-                path.logs: /mnt/ephemeral/elasticsearch/log
+                path.data: /var/lib/elasticsearch
+                path.logs: /var/log/elasticsearch
                 bootstrap.memory_lock: true
                 network.host: _ec2_
                 discovery.zen.minimum_master_nodes: 2
