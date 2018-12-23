@@ -26,11 +26,13 @@ Parameters:
     Type: 'AWS::EC2::Subnet::Id'
   ElasticWazuhVersion:
     AllowedValues:
-      - 6.4.0_3.6.1
-      - 6.4.1_3.6.1
-      - 6.4.2_3.6.1
+      - 6.5.0_3.7.0
+      - 6.5.1_3.7.1
+      - 6.5.2_3.7.1
+      - 6.5.3_3.7.2
+      - 6.5.4_3.7.2
     ConstraintDescription: Format is ElasticVersion_WazuhVersion
-    Default: 6.4.2_3.6.1
+    Default: 6.5.4_3.7.2
     Description: Elastic and Wazuh versions to be installed
     Type: String
   WazuhInstanceType:
@@ -108,6 +110,14 @@ Parameters:
     Default: '55000'
     Description: Port for Wazuh server API
     Type: String
+  WazuhClusterKey:
+    Description: Key used for Wazuh servers cluster
+    Default: 'abcdefghijklmnopqrstuvwxyz012345'
+    Type: String
+    MinLength: '32'
+    MaxLength: '32'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: Any alphanumeric string of 32 characters
 Resources:
   ElasticSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
@@ -458,13 +468,10 @@ Resources:
             /tmp/wazuh_cf_settings:
               content: !Sub |
                 Elastic_Wazuh: ${ElasticWazuhVersion}
-                KibanaAdminUsername: ${KibanaAdminUsername}
-                KibanaAdminPassword: ${KibanaAdminPassword}
-                KibanaPort: ${KibanaPort}
                 WazuhApiAdminUsername: ${WazuhApiAdminUsername}
                 WazuhApiAdminPassword: ${WazuhApiAdminPassword}
                 WazuhApiPort: ${WazuhApiPort}
-                ElbElasticDNS: ${ElbElastic.DNSName}
+                WazuhClusterKey: ${WazuhClusterKey}
                 ElbLogstashDNS: ${ElbLogstash.DNSName}
               mode: '000600'
               owner: root
@@ -504,6 +511,66 @@ Resources:
           /opt/aws/bin/cfn-init --stack ${AWS::StackName} --resource WazuhMasterInstance --configsets WazuhInstallationSet --region ${AWS::Region}
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource WazuhMasterInstance --region ${AWS::Region}
   WazuhMasterInstanceEth0:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      SubnetId: !Ref SubnetWazuh
+      GroupSet: [!Ref 'WazuhSecurityGroup']
+  WazuhWorkerInstance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      'AWS::CloudFormation::Init':
+        configSets:
+          WazuhInstallationSet:
+            - WazuhFiles
+            - WazuhInstall
+        WazuhFiles:
+          files:
+            /tmp/wazuh_cf_settings:
+              content: !Sub |
+                Elastic_Wazuh: ${ElasticWazuhVersion}
+                WazuhApiAdminUsername: ${WazuhApiAdminUsername}
+                WazuhApiAdminPassword: ${WazuhApiAdminPassword}
+                WazuhApiPort: ${WazuhApiPort}
+                WazuhClusterKey: ${WazuhClusterKey}
+                ElbLogstashDNS: ${ElbLogstash.DNSName}
+              mode: '000600'
+              owner: root
+              group: root
+            /tmp/wazuh_cf_worker.sh:
+              source: !Sub >-
+                https://raw.githubusercontent.com/santiago-bassett/wazuh-cloudformation/master/wazuh/wazuh_cf_worker.sh
+              mode: '000700'
+              owner: root
+              group: root
+        WazuhInstall:
+          commands:
+            01_RunInstallationScript:
+              command: /tmp/wazuh_cf_worker.sh
+    Properties:
+      ImageId: !FindInMap
+        - "RegionMap"
+        - Ref: "AWS::Region"
+        - HVM64
+      InstanceType: !Ref WazuhInstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      KeyName: !Ref KeyPairName
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 200
+            VolumeType: gp2
+      NetworkInterfaces:
+        - NetworkInterfaceId: !Ref WazuhWorkerInstanceEth0
+          DeviceIndex: 0
+      Tags:
+        - Key: Name
+          Value: WazuhWorker
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          /opt/aws/bin/cfn-init --stack ${AWS::StackName} --resource WazuhWorkerInstance --configsets WazuhInstallationSet --region ${AWS::Region}
+          /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource WazuhWorkerInstance --region ${AWS::Region}
+  WazuhWorkerInstanceEth0:
     Type: AWS::EC2::NetworkInterface
     Properties:
       SubnetId: !Ref SubnetWazuh

@@ -1,16 +1,14 @@
 #!/bin/bash
-# Install Wazuh master instance using Cloudformation template
+# Install Wazuh worker instance using Cloudformation template
 # Support for Amazon Linux
 
 set -exf
 
 elastic_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f1)
 wazuh_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f2)
-wazuh_api_user=$(cat /tmp/wazuh_cf_settings | grep '^WazuhApiAdminUsername:' | cut -d' ' -f2)
-wazuh_api_password=$(cat /tmp/wazuh_cf_settings | grep '^WazuhApiAdminPassword:' | cut -d' ' -f2)
-wazuh_cluster_key=$(cat /tmp/wazuh_cf_settings | grep '^WazuhClusterKey:' | cut -d' ' -f2)
 elb_logstash=$(cat /tmp/wazuh_cf_settings | grep '^ElbLogstashDNS:' | cut -d' ' -f2)
-eth0_ip=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2  | cut -d' ' -f1)
+wazuh_master_ip=$(cat /tmp/wazuh_cf_settings | grep '^WazuhMasterIP:' | cut -d' ' -f2)
+wazuh_cluster_key=$(cat /tmp/wazuh_cf_settings | grep '^WazuhClusterKey:' | cut -d' ' -f2)
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
@@ -45,7 +43,7 @@ type=rpm-md
 EOF
 
 # Installing wazuh-manager
-yum -y install python-cryptograpy
+yum -y install python-cryptography
 yum -y install wazuh-manager-${wazuh_version}
 chkconfig --add wazuh-manager
 
@@ -62,8 +60,8 @@ cat >> /var/ossec/etc/ossec.conf << EOF
 <ossec_config>
   <cluster>
     <name>wazuh</name>
-    <node_name>wazuh-master</node_name>
-    <node_type>master</node_type>
+    <node_name>wazuh-worker</node_name>
+    <node_type>worker</node_type>
     <key>WAZUH_CLUSTER_KEY</key>
     <port>1516</port>
     <bind_addr>0.0.0.0</bind_addr>
@@ -76,31 +74,11 @@ cat >> /var/ossec/etc/ossec.conf << EOF
 </ossec_config>
 EOF
 
-sed -i "s/WAZUH_MASTER_IP/${eth0_ip}/" /var/ossec/etc/ossec.conf
+sed -i "s/WAZUH_MASTER_IP/${wazuh_master_ip}/" /var/ossec/etc/ossec.conf
 sed -i "s/WAZUH_CLUSTER_KEY/${wazuh_cluster_key}/" /var/ossec/etc/ossec.conf
 
 # Restart wazuh-manager
 service wazuh-manager restart
-
-# Installing NodeJS
-curl --silent --location https://rpm.nodesource.com/setup_8.x | bash -
-yum -y install nodejs
-
-# Installing wazuh-api
-yum -y install wazuh-api-${wazuh_version}
-chkconfig --add wazuh-api
-
-# Configuring Wazuh API user and password
-cd /var/ossec/api/configuration/auth
-node htpasswd -b -c user ${wazuh_api_user} ${wazuh_api_password}
-
-# Enable Wazuh API SSL
-api_ssl_dir="/var/ossec/api/configuration/ssl"
-openssl req -x509 -batch -nodes -days 3650 -newkey rsa:2048 -keyout ${api_ssl_dir}/server.key -out ${api_ssl_dir}/server.crt
-sed -i "s/config.https = \"no\";/config.https = \"yes\";/" /var/ossec/api/configuration/config.js
-
-# Restart wazuh-api
-service wazuh-api restart
 
 # Installing Filebeat
 yum -y install filebeat
