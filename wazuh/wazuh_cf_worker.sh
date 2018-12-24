@@ -43,7 +43,7 @@ type=rpm-md
 EOF
 
 # Installing wazuh-manager
-yum -y install python-cryptography
+yum -y install python27-crypto
 yum -y install wazuh-manager-${wazuh_version}
 chkconfig --add wazuh-manager
 

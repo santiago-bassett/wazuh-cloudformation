@@ -88,7 +88,7 @@ EOF
 
 # Configuring RAM memory in jvm.options
 ram_gb=$(free -g | awk '/^Mem:/{print $2}')
-ram=$(( ${ram_gb} / 2 ))
+ram=$(( (${ram_gb} / 2) - 1 ))
 if [ $ram -eq "0" ]; then ram=1; fi
 sed -i "s/-Xms16g/-Xms${ram}g/" /etc/elasticsearch/jvm.options
 sed -i "s/-Xmx16g/-Xms${ram}g/" /etc/elasticsearch/jvm.options
