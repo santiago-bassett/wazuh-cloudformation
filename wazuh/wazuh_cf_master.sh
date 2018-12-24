@@ -45,7 +45,6 @@ type=rpm-md
 EOF
 
 # Installing wazuh-manager
-yum -y install python27-crypto
 yum -y install wazuh-manager-${wazuh_version}
 chkconfig --add wazuh-manager
 
@@ -54,6 +53,9 @@ chkconfig --add wazuh-manager
 
 # Change manager protocol to tcp, to be used by Amazon ELB
 sed -i "s/<protocol>udp<\/protocol>/<protocol>tcp<\/protocol>/" /var/ossec/etc/ossec.conf
+
+# Installing Python Cryptography module for the cluster
+pip install cryptography
 
 # Configuring cluster section
 sed -i '/<cluster>/,/<\/cluster>/d' /var/ossec/etc/ossec.conf

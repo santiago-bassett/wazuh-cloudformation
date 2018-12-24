@@ -54,16 +54,16 @@ Parameters:
     Default: m5.large
     Description: Type of EC2 instance for Kibana instance
     Type: String
-  KibanaAdminUsername:
-    Default: admin
-    Description: Admin username for Kibana access
+  KibanaUsername:
+    Default: wazuh
+    Description: Username for Kibana access
     Type: String
     MinLength: '1'
     MaxLength: '16'
     AllowedPattern: '[a-zA-Z0-9]*'
     ConstraintDescription: Only alphanumeric characters
-  KibanaAdminPassword:
-    Description: Admin password for Kibana access
+  KibanaPassword:
+    Description: Password for Kibana access
     NoEcho: 'True'
     Type: String
     MinLength: '1'
@@ -489,9 +489,9 @@ Resources:
             /tmp/wazuh_cf_settings:
               content: !Sub |
                 Elastic_Wazuh: ${ElasticWazuhVersion}
-                KibanaAdminUsername: ${KibanaAdminUsername}
-                KibanaAdminPassword: ${KibanaAdminPassword}
                 KibanaPort: ${KibanaPort}
+                KibanaUsername: ${KibanaUsername}
+                KibanaPassword: ${KibanaPassword}
                 WazuhApiAdminUsername: ${WazuhApiAdminUsername}
                 WazuhApiAdminPassword: ${WazuhApiAdminPassword}
                 WazuhApiPort: ${WazuhApiPort}

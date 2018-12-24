@@ -7,6 +7,8 @@ set -exf
 elastic_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f1)
 wazuh_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f2)
 kibana_port=$(cat /tmp/wazuh_cf_settings | grep '^KibanaPort:' | cut -d' ' -f2)
+kibana_username=$(cat /tmp/wazuh_cf_settings | grep '^KibanaUsername:' | cut -d' ' -f2)
+kibana_password=$(cat /tmp/wazuh_cf_settings | grep '^KibanaPassword:' | cut -d' ' -f2)
 eth0_ip=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2  | cut -d' ' -f1)
 wazuh_master_ip=$(cat /tmp/wazuh_cf_settings | grep '^WazuhMasterIP:' | cut -d' ' -f2)
 wazuh_api_user=$(cat /tmp/wazuh_cf_settings | grep '^WazuhApiAdminUsername:' | cut -d' ' -f2)
@@ -88,7 +90,7 @@ EOF
 
 # Configuring RAM memory in jvm.options
 ram_gb=$(free -g | awk '/^Mem:/{print $2}')
-ram=$(( (${ram_gb} / 2) - 1 ))
+ram=$(( ${ram_gb} / 2 ))
 if [ $ram -eq "0" ]; then ram=1; fi
 sed -i "s/-Xms16g/-Xms${ram}g/" /etc/elasticsearch/jvm.options
 sed -i "s/-Xmx16g/-Xms${ram}g/" /etc/elasticsearch/jvm.options
@@ -120,17 +122,12 @@ rm -f ${alert_sample}
 yum -y install kibana-${elastic_version}
 chkconfig --add kibana
 
-# Creating key and certificate
-openssl req -x509 -batch -nodes -days 3650 -newkey rsa:2048 -keyout /etc/kibana/kibana.key -out /etc/kibana/kibana.cert
-
 # Configuring kibana.yml
 cat > /etc/kibana/kibana.yml << EOF
 elasticsearch.url: "http://${eth0_ip}:9200"
-server.port: ${kibana_port}
-server.host: "0.0.0.0"
-server.ssl.enabled: true
-server.ssl.key: /etc/kibana/kibana.key
-server.ssl.certificate: /etc/kibana/kibana.cert
+server.port: 5601
+server.host: "localhost"
+server.ssl.enabled: false
 EOF
 
 # Allow Kibana to listen on privileged ports
@@ -148,7 +145,8 @@ NODE_OPTIONS="--max-old-space-size=4096"
 EOF
 
 # Installing Wazuh plugin for Kibana
-/usr/share/kibana/bin/kibana-plugin install  https://packages.wazuh.com/wazuhapp/wazuhapp-${wazuh_version}_${elastic_version}.zip
+plugin_url="https://packages.wazuh.com/wazuhapp/wazuhapp-${wazuh_version}_${elastic_version}.zip"
+sudo -u kibana NODE_OPTIONS="--max-old-space-size=4096" /usr/share/kibana/bin/kibana-plugin install ${plugin_url}
 cat >> /usr/share/kibana/plugins/wazuh/config.yml << 'EOF'
 wazuh.shards: 1
 wazuh.replicas: 1
@@ -189,5 +187,37 @@ rm -f ${api_config}
 # Starting Kibana
 service kibana start
 
-# Disable repositories
+# Disable Elastic repository
 sed -i "s/^enabled=1/enabled=0/" /etc/yum.repos.d/elastic.repo
+
+# Install Nginx ang generate certificates
+yum -y install nginx httpd-tools
+mkdir -p /etc/ssl/certs /etc/ssl/private
+openssl req -x509 -batch -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/private/kibana.key -out /etc/ssl/certs/kibana.pem
+
+# Configure Nginx
+htpasswd -b -c /etc/nginx/conf.d/kibana.htpasswd ${kibana_username} ${kibana_password}
+cat > /etc/nginx/sites-available/default <<\EOF
+server {
+    listen 80;
+    listen [::]:80;
+    return 301 https://$host$request_uri;
+}
+server {
+    listen 443 default_server;
+    listen            [::]:443;
+    ssl on;
+    ssl_certificate /etc/ssl/certs/kibana.pem;
+    ssl_certificate_key /etc/ssl/private/kibana.key;
+    access_log            /var/log/nginx/nginx.access.log;
+    error_log            /var/log/nginx/nginx.error.log;
+    location / {
+        auth_basic "Restricted";
+        auth_basic_user_file /etc/nginx/conf.d/kibana.htpasswd;
+        proxy_pass http://127.0.0.1:5601/;
+    }
+}
+EOF
+
+# Starting Nginx
+service nginx start
