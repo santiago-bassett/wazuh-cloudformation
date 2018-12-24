@@ -262,6 +262,13 @@ Resources:
           ToPort: 1515
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
+          FromPort: 1516
+          ToPort: 1516
+          CidrIp: !FindInMap
+            - SubnetConfig
+            - WazuhVpc
+            - CIDR
+        - IpProtocol: tcp
           FromPort: 55000
           ToPort: 55000
           CidrIp: !FindInMap

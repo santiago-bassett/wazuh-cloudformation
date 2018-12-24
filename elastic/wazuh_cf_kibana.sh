@@ -163,7 +163,7 @@ api_time=$(($(date +%s%N)/1000000))
 cat > ${api_config} << EOF
 {
   "api_user": "wazuh_api_user",
-  "api_password": "wazuh_api_password",
+  "api_password": "wazuh_api_password_base64",
   "url": "https://wazuh_master_ip",
   "api_port": "wazuh_api_port",
   "insecure": "false",
@@ -176,8 +176,9 @@ cat > ${api_config} << EOF
 }
 EOF
 
+wazuh_api_password_base64=`echo -n ${wazuh_api_password} | base64`
 sed -i "s/wazuh_api_user/${wazuh_api_user}/" ${api_config}
-sed -i "s/wazuh_api_password/${wazuh_api_password}/" ${api_config}
+sed -i "s/wazuh_api_password_base64/${wazuh_api_password_base64}/" ${api_config}
 sed -i "s/wazuh_master_ip/${wazuh_master_ip}/" ${api_config}
 sed -i "s/wazuh_api_port/${wazuh_api_port}/" ${api_config}
 
@@ -197,7 +198,7 @@ openssl req -x509 -batch -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/priv
 
 # Configure Nginx
 htpasswd -b -c /etc/nginx/conf.d/kibana.htpasswd ${kibana_username} ${kibana_password}
-cat > /etc/nginx/sites-available/default <<\EOF
+cat > /etc/nginx/conf.d/kibana.conf <<\EOF
 server {
     listen 80;
     listen [::]:80;
