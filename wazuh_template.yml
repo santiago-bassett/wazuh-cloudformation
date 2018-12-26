@@ -107,6 +107,14 @@ Parameters:
     Default: '1515'
     Description: Port for agents registration with Wazuh server
     Type: String
+  WazuhRegistrationPassword:
+    Description: Password for Wazuh agents registration
+    NoEcho: 'True'
+    Type: String
+    MinLength: '1'
+    MaxLength: '48'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: Only alphanumeric characters
   WazuhApiPort:
     Default: '55000'
     Description: Port for Wazuh server API
@@ -620,6 +628,7 @@ Resources:
                 WazuhApiPort: ${WazuhApiPort}
                 WazuhServerPort: ${WazuhServerPort}
                 WazuhRegistrationPort: ${WazuhRegistrationPort}
+                WazuhRegistrationPassword: ${WazuhRegistrationPassword}
                 WazuhClusterKey: ${WazuhClusterKey}
                 ElbLogstashDNS: ${ElbLogstash.DNSName}
               mode: '000600'
@@ -691,6 +700,7 @@ Resources:
                 Elastic_Wazuh: ${ElasticWazuhVersion}
                 WazuhServerPort: ${WazuhServerPort}
                 WazuhRegistrationPort: ${WazuhRegistrationPort}
+                WazuhRegistrationPassword: ${WazuhRegistrationPassword}
                 WazuhClusterKey: ${WazuhClusterKey}
                 WazuhMasterIP: ${WazuhMasterInstance.PrivateIp}
                 ElbLogstashDNS: ${ElbLogstash.DNSName}

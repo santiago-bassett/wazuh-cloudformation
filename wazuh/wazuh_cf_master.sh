@@ -8,6 +8,7 @@ elastic_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' 
 wazuh_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f2)
 wazuh_server_port=$(cat /tmp/wazuh_cf_settings | grep '^WazuhServerPort:' | cut -d' ' -f2)
 wazuh_registration_port=$(cat /tmp/wazuh_cf_settings | grep '^WazuhRegistrationPort:' | cut -d' ' -f2)
+wazuh_registration_password=$(cat /tmp/wazuh_cf_settings | grep '^WazuhRegistrationPassword:' | cut -d' ' -f2)
 wazuh_api_user=$(cat /tmp/wazuh_cf_settings | grep '^WazuhApiAdminUsername:' | cut -d' ' -f2)
 wazuh_api_password=$(cat /tmp/wazuh_cf_settings | grep '^WazuhApiAdminPassword:' | cut -d' ' -f2)
 wazuh_api_port=$(cat /tmp/wazuh_cf_settings | grep '^WazuhApiPort:' | cut -d' ' -f2)
@@ -57,9 +58,35 @@ chkconfig --add wazuh-manager
 # Change manager protocol to tcp, to be used by Amazon ELB
 sed -i "s/<protocol>udp<\/protocol>/<protocol>tcp<\/protocol>/" /var/ossec/etc/ossec.conf
 
-# Set manager ports for registration and agents communication
-sed -i "s/<port>1515<\/port>/<port>${wazuh_registration_port}<\/port>/" /var/ossec/etc/ossec.conf
+# Set manager port for agent communications
 sed -i "s/<port>1514<\/port>/<port>${wazuh_server_port}<\/port>/" /var/ossec/etc/ossec.conf
+
+# Configuring registration service 
+sed -i '/<auth>/,/<\/auth>/d' /var/ossec/etc/ossec.conf
+
+cat >> /var/ossec/etc/ossec.conf << EOF
+<ossec_config>
+  <auth>
+    <disabled>no</disabled>
+    <port>${wazuh_registration_port}</port>
+    <use_source_ip>no</use_source_ip>
+    <force_insert>yes</force_insert>
+    <force_time>0</force_time>
+    <purge>yes</purge>
+    <use_password>yes</use_password>
+    <limit_maxagents>yes</limit_maxagents>
+    <ciphers>HIGH:!ADH:!EXP:!MD5:!RC4:!3DES:!CAMELLIA:@STRENGTH</ciphers>
+    <!-- <ssl_agent_ca></ssl_agent_ca> -->
+    <ssl_verify_host>no</ssl_verify_host>
+    <ssl_manager_cert>/var/ossec/etc/sslmanager.cert</ssl_manager_cert>
+    <ssl_manager_key>/var/ossec/etc/sslmanager.key</ssl_manager_key>
+    <ssl_auto_negotiate>no</ssl_auto_negotiate>
+  </auth>
+</ossec_config>
+EOF
+
+# Setting password for agents registration
+echo "${wazuh_registration_password}" > /var/ossec/etc/authd.pass
 
 # Installing Python Cryptography module for the cluster
 pip install cryptography

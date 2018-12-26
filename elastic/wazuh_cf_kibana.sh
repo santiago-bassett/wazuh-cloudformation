@@ -6,6 +6,7 @@ set -exf
 
 elastic_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f1)
 wazuh_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f2)
+wazuh_major=`echo ${wazuh_version} | cut -d'.' -f 1`
 kibana_port=$(cat /tmp/wazuh_cf_settings | grep '^KibanaPort:' | cut -d' ' -f2)
 kibana_username=$(cat /tmp/wazuh_cf_settings | grep '^KibanaUsername:' | cut -d' ' -f2)
 kibana_password=$(cat /tmp/wazuh_cf_settings | grep '^KibanaPassword:' | cut -d' ' -f2)
@@ -113,7 +114,7 @@ curl -XDELETE "http://${eth0_ip}:9200/wazuh-alerts-*"
 # Inserting Wazuh alert sample
 alert_sample="/tmp/alert_sample.json"
 curl -Lo ${alert_sample} "https://raw.githubusercontent.com/wazuh/wazuh/v${wazuh_version}/extensions/elasticsearch/alert_sample.json"
-curl -XPUT "http://${eth0_ip}:9200/wazuh-alerts-3.x-"`date +%Y.%m.%d`"/wazuh/sample" -H 'Content-Type: application/json' -d@${alert_sample}
+curl -XPUT "http://${eth0_ip}:9200/wazuh-alerts-${wazuh_major}.x-"`date +%Y.%m.%d`"/wazuh/sample" -H 'Content-Type: application/json' -d@${alert_sample}
 rm -f ${alert_sample}
 
 # Installing Kibana
@@ -154,7 +155,7 @@ wazuh.monitoring.shards: 1
 wazuh.monitoring.replicas: 1
 EOF
 
-# Configuring Wazuh API in Kibana plugin
+# Configuring Wazuh API for Kibana plugin
 api_config="/tmp/api_config.json"
 api_time=$(($(date +%s%N)/1000000))
 wazuh_api_password_base64=`echo -n ${wazuh_api_password} | base64`
@@ -180,6 +181,25 @@ rm -f ${api_config}
 
 # Starting Kibana
 service kibana start
+sleep 60
+
+# Configuring default index pattern for Kibana
+default_index="/tmp/default_index.json"
+
+cat > ${default_index} << EOF
+{
+  "changes": {
+    "defaultIndex": "wazuh-alerts-${wazuh_major}.x-*"
+  }
+}
+EOF
+
+curl -POST "http://localhost:5601/api/kibana/settings" -H "Content-Type: application/json" -H "kbn-xsrf: true" -d@${default_index}
+rm -f ${default_index}
+
+# Configuring Kibana TimePicker
+curl -POST "http://localhost:5601/api/kibana/settings" -H "Content-Type: application/json" -H "kbn-xsrf: true" -d \
+'{"changes":{"timepicker:timeDefaults":"{\n  \"from\": \"now-24h\",\n  \"to\": \"now\",\n  \"mode\": \"quick\"}"}}'
 
 # Disable Elastic repository
 sed -i "s/^enabled=1/enabled=0/" /etc/yum.repos.d/elastic.repo
