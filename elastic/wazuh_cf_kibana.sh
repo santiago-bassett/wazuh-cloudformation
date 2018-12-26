@@ -50,14 +50,18 @@ chkconfig --add elasticsearch
 /usr/share/elasticsearch/bin/elasticsearch-plugin install --batch discovery-ec2
 
 # Configuration file created by AWS Cloudformation template
-# Because of it we set the right owner/group for the file
 mv -f /tmp/wazuh_cf_elasticsearch.yml /etc/elasticsearch/elasticsearch.yml
 chown elasticsearch:elasticsearch /etc/elasticsearch/elasticsearch.yml
 
+# Calculating RAM for Elasticsearch
+ram_gb=$(free -g | awk '/^Mem:/{print $2}')
+ram=$(( ${ram_gb} / 2 ))
+if [ $ram -eq "0" ]; then ram=1; fi
+
 # Configuring jvm.options
-cat > /etc/elasticsearch/jvm.options << 'EOF'
--Xms16g
--Xmx16g
+cat > /etc/elasticsearch/jvm.options << EOF
+-Xms${ram}g
+-Xmx${ram}g
 -XX:+UseConcMarkSweepGC
 -XX:CMSInitiatingOccupancyFraction=75
 -XX:+UseCMSInitiatingOccupancyOnly
@@ -72,7 +76,7 @@ cat > /etc/elasticsearch/jvm.options << 'EOF'
 -Dio.netty.recycler.maxCapacityPerThread=0
 -Dlog4j.shutdownHookEnabled=false
 -Dlog4j2.disable.jmx=true
--Djava.io.tmpdir=${ES_TMPDIR}
+-Djava.io.tmpdir=\${ES_TMPDIR}
 -XX:+HeapDumpOnOutOfMemoryError
 -XX:HeapDumpPath=/var/lib/elasticsearch
 -XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log
@@ -88,20 +92,13 @@ cat > /etc/elasticsearch/jvm.options << 'EOF'
 9-:-Djava.locale.providers=COMPAT
 EOF
 
-# Configuring RAM memory in jvm.options
-ram_gb=$(free -g | awk '/^Mem:/{print $2}')
-ram=$(( ${ram_gb} / 2 ))
-if [ $ram -eq "0" ]; then ram=1; fi
-sed -i "s/-Xms16g/-Xms${ram}g/" /etc/elasticsearch/jvm.options
-sed -i "s/-Xmx16g/-Xms${ram}g/" /etc/elasticsearch/jvm.options
-
 # Allowing unlimited memory allocation
 echo 'elasticsearch soft memlock unlimited' >> /etc/security/limits.conf
 echo 'elasticsearch hard memlock unlimited' >> /etc/security/limits.conf
 
 # Starting Elasticsearch
 service elasticsearch start
-sleep 90
+sleep 60
 
 # Loading and tuning Wazuh alerts template
 url_alerts_template="https://raw.githubusercontent.com/wazuh/wazuh/v${wazuh_version}/extensions/elasticsearch/wazuh-elastic6-template-alerts.json"
@@ -111,6 +108,7 @@ sed -i 's/"index.refresh_interval": "5s"/"index.refresh_interval": "5s",/' ${ale
 sed -i '/"index.refresh_interval": "5s",/ a\    "index.number_of_shards": 2,' ${alerts_template}
 sed -i '/"index.number_of_shards": 2,/ a\    "index.number_of_replicas": 1' ${alerts_template}
 curl -XPUT "http://${eth0_ip}:9200/_template/wazuh" -H 'Content-Type: application/json' -d@${alerts_template}
+curl -XDELETE "http://${eth0_ip}:9200/wazuh-alerts-*"
 
 # Inserting Wazuh alert sample
 alert_sample="/tmp/alert_sample.json"
@@ -159,13 +157,14 @@ EOF
 # Configuring Wazuh API in Kibana plugin
 api_config="/tmp/api_config.json"
 api_time=$(($(date +%s%N)/1000000))
+wazuh_api_password_base64=`echo -n ${wazuh_api_password} | base64`
 
 cat > ${api_config} << EOF
 {
-  "api_user": "wazuh_api_user",
-  "api_password": "wazuh_api_password_base64",
-  "url": "https://wazuh_master_ip",
-  "api_port": "wazuh_api_port",
+  "api_user": "${wazuh_api_user}",
+  "api_password": "${wazuh_api_password_base64}",
+  "url": "https://${wazuh_master_ip}",
+  "api_port": "${wazuh_api_port}",
   "insecure": "false",
   "component": "API",
   "cluster_info": {
@@ -175,12 +174,6 @@ cat > ${api_config} << EOF
   }
 }
 EOF
-
-wazuh_api_password_base64=`echo -n ${wazuh_api_password} | base64`
-sed -i "s/wazuh_api_user/${wazuh_api_user}/" ${api_config}
-sed -i "s/wazuh_api_password_base64/${wazuh_api_password_base64}/" ${api_config}
-sed -i "s/wazuh_master_ip/${wazuh_master_ip}/" ${api_config}
-sed -i "s/wazuh_api_port/${wazuh_api_port}/" ${api_config}
 
 curl -s -XPUT "http://${eth0_ip}:9200/.wazuh/wazuh-configuration/${api_time}" -H 'Content-Type: application/json' -d@${api_config}
 rm -f ${api_config}
@@ -198,15 +191,10 @@ openssl req -x509 -batch -nodes -days 365 -newkey rsa:2048 -keyout /etc/ssl/priv
 
 # Configure Nginx
 htpasswd -b -c /etc/nginx/conf.d/kibana.htpasswd ${kibana_username} ${kibana_password}
-cat > /etc/nginx/conf.d/kibana.conf <<\EOF
+cat > /etc/nginx/conf.d/kibana.conf << EOF
 server {
-    listen 80;
-    listen [::]:80;
-    return 301 https://$host$request_uri;
-}
-server {
-    listen 443 default_server;
-    listen            [::]:443;
+    listen ${kibana_port} default_server;
+    listen            [::]:${kibana_port};
     ssl on;
     ssl_certificate /etc/ssl/certs/kibana.pem;
     ssl_certificate_key /etc/ssl/private/kibana.key;

@@ -6,9 +6,11 @@ set -exf
 
 elastic_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f1)
 wazuh_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f2)
-elb_logstash=$(cat /tmp/wazuh_cf_settings | grep '^ElbLogstashDNS:' | cut -d' ' -f2)
-wazuh_master_ip=$(cat /tmp/wazuh_cf_settings | grep '^WazuhMasterIP:' | cut -d' ' -f2)
+wazuh_server_port=$(cat /tmp/wazuh_cf_settings | grep '^WazuhServerPort:' | cut -d' ' -f2)
+wazuh_registration_port=$(cat /tmp/wazuh_cf_settings | grep '^WazuhRegistrationPort:' | cut -d' ' -f2)
 wazuh_cluster_key=$(cat /tmp/wazuh_cf_settings | grep '^WazuhClusterKey:' | cut -d' ' -f2)
+wazuh_master_ip=$(cat /tmp/wazuh_cf_settings | grep '^WazuhMasterIP:' | cut -d' ' -f2)
+elb_logstash=$(cat /tmp/wazuh_cf_settings | grep '^ElbLogstashDNS:' | cut -d' ' -f2)
 
 # Check if running as root
 if [[ $EUID -ne 0 ]]; then
@@ -52,6 +54,10 @@ chkconfig --add wazuh-manager
 # Change manager protocol to tcp, to be used by Amazon ELB
 sed -i "s/<protocol>udp<\/protocol>/<protocol>tcp<\/protocol>/" /var/ossec/etc/ossec.conf
 
+# Set manager ports for registration and agents communication
+sed -i "s/<port>1515<\/port>/<port>${wazuh_registration_port}<\/port>/" /var/ossec/etc/ossec.conf
+sed -i "s/<port>1514<\/port>/<port>${wazuh_server_port}<\/port>/" /var/ossec/etc/ossec.conf
+
 # Installing Python Cryptography module for the cluster
 pip install cryptography
 
@@ -64,20 +70,17 @@ cat >> /var/ossec/etc/ossec.conf << EOF
     <name>wazuh</name>
     <node_name>wazuh-worker</node_name>
     <node_type>worker</node_type>
-    <key>WAZUH_CLUSTER_KEY</key>
+    <key>${wazuh_cluster_key}</key>
     <port>1516</port>
     <bind_addr>0.0.0.0</bind_addr>
     <nodes>
-        <node>WAZUH_MASTER_IP</node>
+        <node>${wazuh_master_ip}</node>
     </nodes>
     <hidden>no</hidden>
     <disabled>no</disabled>
   </cluster>
 </ossec_config>
 EOF
-
-sed -i "s/WAZUH_MASTER_IP/${wazuh_master_ip}/" /var/ossec/etc/ossec.conf
-sed -i "s/WAZUH_CLUSTER_KEY/${wazuh_cluster_key}/" /var/ossec/etc/ossec.conf
 
 # Restart wazuh-manager
 service wazuh-manager restart

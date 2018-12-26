@@ -6,8 +6,11 @@ set -exf
 
 elastic_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f1)
 wazuh_version=$(cat /tmp/wazuh_cf_settings | grep '^Elastic_Wazuh:' | cut -d' ' -f2 | cut -d'_' -f2)
+wazuh_server_port=$(cat /tmp/wazuh_cf_settings | grep '^WazuhServerPort:' | cut -d' ' -f2)
+wazuh_registration_port=$(cat /tmp/wazuh_cf_settings | grep '^WazuhRegistrationPort:' | cut -d' ' -f2)
 wazuh_api_user=$(cat /tmp/wazuh_cf_settings | grep '^WazuhApiAdminUsername:' | cut -d' ' -f2)
 wazuh_api_password=$(cat /tmp/wazuh_cf_settings | grep '^WazuhApiAdminPassword:' | cut -d' ' -f2)
+wazuh_api_port=$(cat /tmp/wazuh_cf_settings | grep '^WazuhApiPort:' | cut -d' ' -f2)
 wazuh_cluster_key=$(cat /tmp/wazuh_cf_settings | grep '^WazuhClusterKey:' | cut -d' ' -f2)
 elb_logstash=$(cat /tmp/wazuh_cf_settings | grep '^ElbLogstashDNS:' | cut -d' ' -f2)
 eth0_ip=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2  | cut -d' ' -f1)
@@ -54,6 +57,10 @@ chkconfig --add wazuh-manager
 # Change manager protocol to tcp, to be used by Amazon ELB
 sed -i "s/<protocol>udp<\/protocol>/<protocol>tcp<\/protocol>/" /var/ossec/etc/ossec.conf
 
+# Set manager ports for registration and agents communication
+sed -i "s/<port>1515<\/port>/<port>${wazuh_registration_port}<\/port>/" /var/ossec/etc/ossec.conf
+sed -i "s/<port>1514<\/port>/<port>${wazuh_server_port}<\/port>/" /var/ossec/etc/ossec.conf
+
 # Installing Python Cryptography module for the cluster
 pip install cryptography
 
@@ -66,20 +73,17 @@ cat >> /var/ossec/etc/ossec.conf << EOF
     <name>wazuh</name>
     <node_name>wazuh-master</node_name>
     <node_type>master</node_type>
-    <key>WAZUH_CLUSTER_KEY</key>
+    <key>${wazuh_cluster_key}</key>
     <port>1516</port>
     <bind_addr>0.0.0.0</bind_addr>
     <nodes>
-        <node>WAZUH_MASTER_IP</node>
+        <node>${eth0_ip}</node>
     </nodes>
     <hidden>no</hidden>
     <disabled>no</disabled>
   </cluster>
 </ossec_config>
 EOF
-
-sed -i "s/WAZUH_MASTER_IP/${eth0_ip}/" /var/ossec/etc/ossec.conf
-sed -i "s/WAZUH_CLUSTER_KEY/${wazuh_cluster_key}/" /var/ossec/etc/ossec.conf
 
 # Restart wazuh-manager
 service wazuh-manager restart
@@ -96,10 +100,11 @@ chkconfig --add wazuh-api
 cd /var/ossec/api/configuration/auth
 node htpasswd -b -c user ${wazuh_api_user} ${wazuh_api_password}
 
-# Enable Wazuh API SSL
+# Enable Wazuh API SSL and configure listening port
 api_ssl_dir="/var/ossec/api/configuration/ssl"
 openssl req -x509 -batch -nodes -days 3650 -newkey rsa:2048 -keyout ${api_ssl_dir}/server.key -out ${api_ssl_dir}/server.crt
 sed -i "s/config.https = \"no\";/config.https = \"yes\";/" /var/ossec/api/configuration/config.js
+sed -i "s/config.port = \"55000\";/config.port = \"${wazuh_api_port}\";/" /var/ossec/api/configuration/config.js
 
 # Restart wazuh-api
 service wazuh-api restart

@@ -227,8 +227,8 @@ Resources:
           ToPort: 22
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
+          FromPort: !Ref KibanaPort
+          ToPort: !Ref KibanaPort
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
           FromPort: 9200
@@ -251,15 +251,15 @@ Resources:
             - WazuhVpc
             - CIDR
         - IpProtocol: tcp
-          FromPort: 1514
-          ToPort: 1514
+          FromPort: !Ref WazuhServerPort
+          ToPort: !Ref WazuhServerPort
           CidrIp: !FindInMap
             - SubnetConfig
             - WazuhVpc
             - CIDR
         - IpProtocol: tcp
-          FromPort: 1515
-          ToPort: 1515
+          FromPort: !Ref WazuhRegistrationPort
+          ToPort: !Ref WazuhRegistrationPort
           CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
           FromPort: 1516
@@ -269,8 +269,8 @@ Resources:
             - WazuhVpc
             - CIDR
         - IpProtocol: tcp
-          FromPort: 55000
-          ToPort: 55000
+          FromPort: !Ref WazuhApiPort
+          ToPort: !Ref WazuhApiPort
           CidrIp: !FindInMap
             - SubnetConfig
             - WazuhVpc
@@ -308,8 +308,8 @@ Resources:
       VpcId: !Ref WazuhVpc
       SecurityGroupIngress:
         - IpProtocol: tcp
-          FromPort: 1514
-          ToPort: 1514
+          FromPort: !Ref WazuhServerPort
+          ToPort: !Ref WazuhServerPort
           CidrIp: 0.0.0.0/0
   ElbElastic:
     Type: 'AWS::ElasticLoadBalancing::LoadBalancer'
@@ -353,6 +353,31 @@ Resources:
         - LoadBalancerPort: '5000'
           InstancePort: '5000'
           Protocol: TCP
+  ElbWazuh:
+    Type: 'AWS::ElasticLoadBalancing::LoadBalancer'
+    Properties:
+      LoadBalancerName: !Sub '${AWS::StackName}-Wazuh'
+      Scheme: internet-facing
+      Subnets:
+        - !Ref SubnetWazuh
+      SecurityGroups:
+        - !Ref ElbWazuhSecurityGroup
+      Instances:
+        - Ref: WazuhMasterInstance
+        - Ref: WazuhWorkerInstance
+      HealthCheck:
+        Target: !Sub 'TCP:${WazuhServerPort}'
+        HealthyThreshold: '3'
+        UnhealthyThreshold: '5'
+        Interval: '60'
+        Timeout: '5'
+      Listeners:
+        - LoadBalancerPort: !Ref WazuhServerPort
+          InstancePort: !Ref WazuhServerPort
+          Protocol: TCP
+      ConnectionDrainingPolicy:
+        Enabled: 'true'
+        Timeout: '600'
   InstanceRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -593,6 +618,8 @@ Resources:
                 WazuhApiAdminUsername: ${WazuhApiAdminUsername}
                 WazuhApiAdminPassword: ${WazuhApiAdminPassword}
                 WazuhApiPort: ${WazuhApiPort}
+                WazuhServerPort: ${WazuhServerPort}
+                WazuhRegistrationPort: ${WazuhRegistrationPort}
                 WazuhClusterKey: ${WazuhClusterKey}
                 ElbLogstashDNS: ${ElbLogstash.DNSName}
               mode: '000600'
@@ -662,9 +689,8 @@ Resources:
             /tmp/wazuh_cf_settings:
               content: !Sub |
                 Elastic_Wazuh: ${ElasticWazuhVersion}
-                WazuhApiAdminUsername: ${WazuhApiAdminUsername}
-                WazuhApiAdminPassword: ${WazuhApiAdminPassword}
-                WazuhApiPort: ${WazuhApiPort}
+                WazuhServerPort: ${WazuhServerPort}
+                WazuhRegistrationPort: ${WazuhRegistrationPort}
                 WazuhClusterKey: ${WazuhClusterKey}
                 WazuhMasterIP: ${WazuhMasterInstance.PrivateIp}
                 ElbLogstashDNS: ${ElbLogstash.DNSName}

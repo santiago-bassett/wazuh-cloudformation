@@ -58,10 +58,15 @@ chown -R elasticsearch:elasticsearch /mnt/ephemeral/elasticsearch
 mv -f /tmp/wazuh_cf_elasticsearch.yml /etc/elasticsearch/elasticsearch.yml
 chown elasticsearch:elasticsearch /etc/elasticsearch/elasticsearch.yml
 
+# Calculating RAM for Elasticsearch
+ram_gb=$(free -g | awk '/^Mem:/{print $2}')
+ram=$(( ${ram_gb} / 2 ))
+if [ $ram -eq "0" ]; then ram=1; fi
+
 # Configuring jvm.options
-cat > /etc/elasticsearch/jvm.options << 'EOF'
--Xms16g
--Xmx16g
+cat > /etc/elasticsearch/jvm.options << EOF
+-Xms${ram}g
+-Xmx${ram}g
 -XX:+UseConcMarkSweepGC
 -XX:CMSInitiatingOccupancyFraction=75
 -XX:+UseCMSInitiatingOccupancyOnly
@@ -76,7 +81,7 @@ cat > /etc/elasticsearch/jvm.options << 'EOF'
 -Dio.netty.recycler.maxCapacityPerThread=0
 -Dlog4j.shutdownHookEnabled=false
 -Dlog4j2.disable.jmx=true
--Djava.io.tmpdir=${ES_TMPDIR}
+-Djava.io.tmpdir=\${ES_TMPDIR}
 -XX:+HeapDumpOnOutOfMemoryError
 -XX:HeapDumpPath=/var/lib/elasticsearch
 -XX:ErrorFile=/var/log/elasticsearch/hs_err_pid%p.log
@@ -91,13 +96,6 @@ cat > /etc/elasticsearch/jvm.options << 'EOF'
 9-:-Xlog:gc*,gc+age=trace,safepoint:file=/var/log/elasticsearch/gc.log:utctime,pid,tags:filecount=32,filesize=64m
 9-:-Djava.locale.providers=COMPAT
 EOF
-
-# Configuring RAM memory in jvm.options
-ram_gb=$(free -g | awk '/^Mem:/{print $2}')
-ram=$(( ${ram_gb} / 2 ))
-if [ $ram -eq "0" ]; then ram=1; fi
-sed -i "s/-Xms16g/-Xms${ram}g/" /etc/elasticsearch/jvm.options
-sed -i "s/-Xmx16g/-Xms${ram}g/" /etc/elasticsearch/jvm.options
 
 # Allowing unlimited memory allocation
 echo 'elasticsearch soft memlock unlimited' >> /etc/security/limits.conf
@@ -125,10 +123,15 @@ path.logs: /mnt/ephemeral/logstash/log
 path.config: /etc/logstash/conf.d/*.conf
 EOF
 
+# Calculating RAM for Logstash
+ram_gb=$(free -g | awk '/^Mem:/{print $2}')
+ram=$(( ${ram_gb} / 4 ))
+if [ $ram -eq "0" ]; then ram=1; fi
+
 # Configuring jvm.options
-cat > /etc/logstash/jvm.options << 'EOF'
--Xms2g
--Xmx2g
+cat > /etc/logstash/jvm.options << EOF
+-Xms${ram}g
+-Xmx${ram}g
 -XX:+UseParNewGC
 -XX:+UseConcMarkSweepGC
 -XX:CMSInitiatingOccupancyFraction=75
@@ -140,13 +143,6 @@ cat > /etc/logstash/jvm.options << 'EOF'
 -XX:+HeapDumpOnOutOfMemoryError
 -Djava.security.egd=file:/dev/urandom
 EOF
-
-# Configuring RAM memory in jvm.options
-ram_gb=$(free -g | awk '/^Mem:/{print $2}')
-ram=$(( ${ram_gb} / 4 ))
-if [ $ram -eq "0" ]; then ram=1; fi
-sed -i "s/-Xms2g/-Xms${ram}g/" /etc/logstash/jvm.options
-sed -i "s/-Xmx2g/-Xms${ram}g/" /etc/logstash/jvm.options
 
 # Starting Logstash
 initctl start logstash
