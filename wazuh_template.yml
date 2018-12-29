@@ -1,4 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
+
+
 Mappings:
   RegionMap:
     us-east-1:
@@ -18,13 +20,62 @@ Mappings:
       CIDR: 10.0.1.0/24
     SubnetWazuh:
       CIDR: 10.0.2.0/24
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      -
+        Label:
+          default: "AWS environment"
+        Parameters:
+          - AvailabilityZone
+          - KeyPairName
+      - 
+        Label:
+          default: "Version and instance types"
+        Parameters:
+          - ElasticWazuhVersion
+          - WazuhInstanceType
+          - ElasticInstanceType
+          - KibanaInstanceType
+      - 
+        Label:
+          default: "Wazuh configuration"
+        Parameters:
+          - WazuhServerPort
+          - WazuhRegistrationPort
+          - WazuhRegistrationPassword
+          - WazuhApiPort
+          - WazuhApiAdminUsername
+          - WazuhApiAdminPassword
+          - WazuhClusterKey
+      -
+        Label:
+          default: "Kibana configuration"
+        Parameters:
+          - KibanaPort
+          - KibanaUsername
+          - KibanaPassword
+      -
+        Label:
+          default: "Optional: Domain names and SSL"
+        Parameters:
+          - ParentDomainName
+          - SubDomainName
+          - SSLCertificateARN
+
 Parameters:
+
+  # AWS environment 
   AvailabilityZone:
     Description: Select an availability zone for the VPC
     Type: 'List<AWS::EC2::AvailabilityZone::Name>'
   KeyPairName:
     Description: Existing EC2 key pair for SSH access
     Type: 'AWS::EC2::KeyPair::KeyName'
+
+  # Version and instance types
   ElasticWazuhVersion:
     AllowedValues:
       - 6.5.0_3.7.0
@@ -35,6 +86,15 @@ Parameters:
     ConstraintDescription: Format is ElasticVersion_WazuhVersion
     Default: 6.5.4_3.7.2
     Description: Elastic and Wazuh versions to be installed
+    Type: String
+  WazuhInstanceType:
+    AllowedValues:
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+    ConstraintDescription: Must contain valid instance type
+    Default: m5.large
+    Description: Type of EC2 instance for Wazuh instance
     Type: String
   ElasticInstanceType:
     AllowedValues:
@@ -54,51 +114,8 @@ Parameters:
     Default: m5.large
     Description: Type of EC2 instance for Kibana instance
     Type: String
-  KibanaUsername:
-    Default: wazuh
-    Description: Username for Kibana access
-    Type: String
-    MinLength: '1'
-    MaxLength: '16'
-    AllowedPattern: '[a-zA-Z0-9]*'
-    ConstraintDescription: Only alphanumeric characters
-  KibanaPassword:
-    Description: Password for Kibana access
-    NoEcho: 'True'
-    Type: String
-    MinLength: '1'
-    MaxLength: '48'
-    AllowedPattern: '[a-zA-Z0-9]*'
-    ConstraintDescription: Only alphanumeric characters
-  KibanaPort:
-    Default: '443'
-    Description: Port for Kibana WUI
-    Type: String
-  WazuhInstanceType:
-    AllowedValues:
-      - m5.large
-      - m5.xlarge
-      - m5.2xlarge
-    ConstraintDescription: Must contain valid instance type
-    Default: m5.large
-    Description: Type of EC2 instance for Wazuh instance
-    Type: String
-  WazuhApiAdminUsername:
-    Default: admin
-    Description: Admin username for Wazuh API
-    Type: String
-    MinLength: '1'
-    MaxLength: '16'
-    AllowedPattern: '[a-zA-Z0-9]*'
-    ConstraintDescription: Only alphanumeric characters
-  WazuhApiAdminPassword:
-    Description: Admin password for Wazuh API
-    NoEcho: 'True'
-    Type: String
-    MinLength: '1'
-    MaxLength: '48'
-    AllowedPattern: '[a-zA-Z0-9]*'
-    ConstraintDescription: Only alphanumeric characters
+
+  # Wazuh configuration
   WazuhServerPort:
     Default: '1514'
     Description: Port for agents connection with Wazuh server
@@ -119,6 +136,22 @@ Parameters:
     Default: '55000'
     Description: Port for Wazuh server API
     Type: String
+  WazuhApiAdminUsername:
+    Default: admin
+    Description: Admin username for Wazuh API
+    Type: String
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: Only alphanumeric characters
+  WazuhApiAdminPassword:
+    Description: Admin password for Wazuh API
+    NoEcho: 'True'
+    Type: String
+    MinLength: '1'
+    MaxLength: '48'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: Only alphanumeric characters
   WazuhClusterKey:
     Description: Key used for Wazuh servers cluster
     Default: 'abcdefghijklmnopqrstuvwxyz012345'
@@ -127,7 +160,49 @@ Parameters:
     MaxLength: '32'
     AllowedPattern: '[a-zA-Z0-9]*'
     ConstraintDescription: Any alphanumeric string of 32 characters
+
+  # Kibana configuration
+  KibanaPort:
+    Default: '443'
+    Description: Port for Kibana WUI
+    Type: String
+  KibanaUsername:
+    Default: wazuh
+    Description: Username for Kibana access
+    Type: String
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: Only alphanumeric characters
+  KibanaPassword:
+    Description: Password for Kibana access
+    NoEcho: 'True'
+    Type: String
+    MinLength: '1'
+    MaxLength: '48'
+    AllowedPattern: '[a-zA-Z0-9]*'
+    ConstraintDescription: Only alphanumeric characters
+
+  # Optional: Domain names and SSL
+  ParentDomainName:
+    Description: 'Optional. Public domain name, already registered with a hosted zone in Route 53 (e.g. wazuh.net).'
+    Type: String
+  SubDomainName:
+    Description: 'Optional. Requires ParentDomainName. Used to create DNS entries (e.g. subdomain.wazuh.net).'
+    Type: String
+  SSLCertificateARN:
+    Description: 'Optional. Used for HTTPS access to WUI. Existent certificate, identified by its Amazon Resource Name (ARN).'
+    Type: String
+
+
+Conditions:
+  HasZone: !Not [!Equals [!Ref ParentDomainName, '']]
+  SSLCertSpecified: !Not [!Equals [!Ref SSLCertificateARN, '']]
+
+
 Resources:
+
+  # Network resources
   WazuhVpc:
     Type: 'AWS::EC2::VPC'
     Properties:
@@ -144,7 +219,7 @@ Resources:
     Type: 'AWS::EC2::Subnet'
     Properties:
       VpcId: !Ref WazuhVpc
-      CidrBlock: !FindInMap 
+      CidrBlock: !FindInMap
         - SubnetConfig
         - SubnetElastic
         - CIDR
@@ -162,6 +237,8 @@ Resources:
       Tags:
         - Key: Application
           Value: !Ref 'AWS::StackId'
+
+  # Internet access
   InternetGateway:
     Type: 'AWS::EC2::InternetGateway'
     Properties:
@@ -197,6 +274,8 @@ Resources:
     Properties:
       SubnetId: !Ref SubnetWazuh
       RouteTableId: !Ref PublicRouteTable
+
+  # Instance security groups
   ElasticSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
@@ -283,6 +362,8 @@ Resources:
             - SubnetConfig
             - WazuhVpc
             - CIDR
+
+  # Elasticsearch load balancer
   ElbElasticSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
@@ -296,6 +377,31 @@ Resources:
             - SubnetConfig
             - WazuhVpc
             - CIDR
+  ElbElastic:
+    Type: 'AWS::ElasticLoadBalancing::LoadBalancer'
+    Properties:
+      LoadBalancerName: !Sub '${AWS::StackName}-Elastic'
+      Scheme: internal
+      Subnets:
+        - !Ref SubnetElastic
+      SecurityGroups:
+        - !Ref ElbElasticSecurityGroup
+      HealthCheck:
+        Target: !Join
+          - ''
+          - - 'HTTP:'
+            - '9200'
+            - /_cluster/health
+        HealthyThreshold: '3'
+        UnhealthyThreshold: '3'
+        Interval: '60'
+        Timeout: '5'
+      Listeners:
+        - LoadBalancerPort: '9200'
+          InstancePort: '9200'
+          Protocol: TCP
+
+  # Logstash load balancer
   ElbLogstashSecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
@@ -309,39 +415,6 @@ Resources:
             - SubnetConfig
             - WazuhVpc
             - CIDR
-  ElbWazuhSecurityGroup:
-    Type: 'AWS::EC2::SecurityGroup'
-    Properties:
-      GroupDescription: ELB Wazuh security group
-      VpcId: !Ref WazuhVpc
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: !Ref WazuhServerPort
-          ToPort: !Ref WazuhServerPort
-          CidrIp: 0.0.0.0/0
-  ElbElastic:
-    Type: 'AWS::ElasticLoadBalancing::LoadBalancer'
-    Properties:
-      LoadBalancerName: !Sub '${AWS::StackName}-Elastic'
-      Scheme: internal
-      Subnets:
-        - !Ref SubnetElastic
-      SecurityGroups:
-        - !Ref ElbElasticSecurityGroup
-      HealthCheck:
-        Target: !Join 
-          - ''
-          - - 'HTTP:'
-            - '9200'
-            - /_cluster/health
-        HealthyThreshold: '3'
-        UnhealthyThreshold: '5'
-        Interval: '60'
-        Timeout: '5'
-      Listeners:
-        - LoadBalancerPort: '9200'
-          InstancePort: '9200'
-          Protocol: TCP
   ElbLogstash:
     Type: 'AWS::ElasticLoadBalancing::LoadBalancer'
     Properties:
@@ -354,13 +427,68 @@ Resources:
       HealthCheck:
         Target: TCP:5000
         HealthyThreshold: '3'
-        UnhealthyThreshold: '5'
+        UnhealthyThreshold: '3'
         Interval: '60'
         Timeout: '5'
       Listeners:
         - LoadBalancerPort: '5000'
           InstancePort: '5000'
           Protocol: TCP
+
+  # Kibana load balancer
+  ElbKibanaSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: ELB Kibana security group
+      VpcId: !Ref WazuhVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: !Ref KibanaPort
+          ToPort: !Ref KibanaPort
+          CidrIp: 0.0.0.0/0
+  ElbKibana:
+    Type: 'AWS::ElasticLoadBalancing::LoadBalancer'
+    Properties:
+      LoadBalancerName: !Sub '${AWS::StackName}-Kibana'
+      Scheme: internet-facing
+      Subnets:
+        - !Ref SubnetElastic
+      SecurityGroups:
+        - !Ref ElbKibanaSecurityGroup
+      Instances:
+        - Ref: KibanaInstance
+      HealthCheck:
+        Target: !Sub 'TCP:${KibanaPort}'
+        HealthyThreshold: '3'
+        UnhealthyThreshold: '3'
+        Interval: '60'
+        Timeout: '5'
+      Listeners:
+        - LoadBalancerPort: 22 
+          InstancePort: 22 
+          Protocol: TCP
+          InstanceProtocol: TCP
+        - LoadBalancerPort: !Ref KibanaPort
+          InstancePort: !Ref KibanaPort
+          Protocol: HTTPS
+          InstanceProtocol: HTTPS
+          SSLCertificateId: !If [SSLCertSpecified, !Ref SSLCertificateARN, '']
+
+  # Wazuh server load balancer
+  ElbWazuhSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: ELB Wazuh security group
+      VpcId: !Ref WazuhVpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref WazuhServerPort
+          ToPort: !Ref WazuhServerPort
+          CidrIp: 0.0.0.0/0
   ElbWazuh:
     Type: 'AWS::ElasticLoadBalancing::LoadBalancer'
     Properties:
@@ -376,7 +504,7 @@ Resources:
       HealthCheck:
         Target: !Sub 'TCP:${WazuhServerPort}'
         HealthyThreshold: '3'
-        UnhealthyThreshold: '5'
+        UnhealthyThreshold: '3'
         Interval: '60'
         Timeout: '5'
       Listeners:
@@ -386,6 +514,40 @@ Resources:
       ConnectionDrainingPolicy:
         Enabled: 'true'
         Timeout: '600'
+
+  # Domain names
+  WazuhDataRecordSet:
+    Condition: HasZone
+    Type: 'AWS::Route53::RecordSet'
+    Properties:
+      HostedZoneName: !Join ['', [!Ref 'ParentDomainName', .]]
+      Name: !Join ['', [data., !Ref 'SubDomainName', ., !Ref 'ParentDomainName', .]]
+      Type: A
+      AliasTarget:
+        HostedZoneId: !GetAtt ElbWazuh.CanonicalHostedZoneNameID
+        DNSName: !GetAtt ElbWazuh.DNSName
+  WazuhRegistrationRecordSet:
+    Condition: HasZone
+    Type: 'AWS::Route53::RecordSet'
+    Properties:
+      HostedZoneName: !Join ['', [!Ref 'ParentDomainName', .]]
+      Name: !Join ['', [registration., !Ref 'SubDomainName', ., !Ref 'ParentDomainName', .]]
+      Type: A
+      TTL: '600'
+      ResourceRecords:
+        - !Ref WazuhMasterEIP
+  KibanaRecordSet:
+    Condition: HasZone
+    Type: 'AWS::Route53::RecordSet'
+    Properties:
+      HostedZoneName: !Join ['', [!Ref 'ParentDomainName', .]]
+      Name: !Join ['', [!Ref 'SubDomainName', ., !Ref 'ParentDomainName', .]]
+      Type: A
+      AliasTarget:
+        HostedZoneId: !GetAtt ElbKibana.CanonicalHostedZoneNameID
+        DNSName: !GetAtt ElbKibana.DNSName
+
+  # IAM role and profile
   InstanceRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -420,6 +582,8 @@ Resources:
     Properties:
       Roles:
         - !Ref InstanceRole
+
+  # Elasticsearch instances
   ElasticAutoScalingGroup:
     Type: 'AWS::AutoScaling::AutoScalingGroup'
     Properties:
@@ -495,7 +659,7 @@ Resources:
             01_RunInstallationScript:
               command: /tmp/wazuh_cf_elastic.sh
     Properties:
-      ImageId: !FindInMap 
+      ImageId: !FindInMap
         - RegionMap
         - !Ref 'AWS::Region'
         - HVM64
@@ -516,6 +680,8 @@ Resources:
           /opt/aws/bin/cfn-init --stack ${AWS::StackName} --resource ElasticLaunchConfiguration --configsets ElasticInstallationSet --region ${AWS::Region}
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource ElasticLaunchConfiguration --region ${AWS::Region}
     DependsOn: GatewayToInternet
+
+  # Kibana instance
   KibanaInstance:
     Type: AWS::EC2::Instance
     Metadata:
@@ -569,7 +735,7 @@ Resources:
           commands:
             01_RunInstallationScript:
               command: /tmp/wazuh_cf_kibana.sh
-    Properties: 
+    Properties:
       ImageId: !FindInMap
         - "RegionMap"
         - Ref: "AWS::Region"
@@ -607,9 +773,11 @@ Resources:
     Type: 'AWS::EC2::EIPAssociation'
     Properties:
       NetworkInterfaceId: !Ref KibanaInstanceEth0
-      AllocationId: !GetAtt 
+      AllocationId: !GetAtt
         - KibanaEIP
         - AllocationId
+
+  # Wazuh master instance
   WazuhMasterInstance:
     Type: AWS::EC2::Instance
     Metadata:
@@ -685,6 +853,8 @@ Resources:
       AllocationId: !GetAtt
         - WazuhMasterEIP
         - AllocationId
+
+  # Wazuh worker instance
   WazuhWorkerInstance:
     Type: AWS::EC2::Instance
     Metadata:
@@ -758,12 +928,51 @@ Resources:
       AllocationId: !GetAtt
         - WazuhWorkerEIP
         - AllocationId
+
+
 Outputs:
-  ElasticAutoScalingGroup:
-    Value: !Ref ElasticAutoScalingGroup
-  ElasticsearchUrl:
-    Description: The URL to check the ElasticSearch cluster health
-    Value: !Join ['', ['http://', !GetAtt ElbElastic.DNSName, ':9200', '/_cluster/health']] 
-  ElasticSecurityGroup:
-    Description: Auto-discovery security group for Elasticsearch
-    Value: !Ref ElasticSecurityGroup
+  ElasticWazuhVersion:
+    Description: Elastic Stack and Wazuh versions
+    Value: !Ref ElasticWazuhVersion
+  KibanaDNS:
+    Description: The URL for the Kibana WUI and SSH access
+    Value: !Ref KibanaRecordSet
+  KibanaPort: 
+    Description: Port number for Kibana WUI access
+    Value: !Ref KibanaPort
+  KibanaUsername:
+    Description: Username for Kibana WUI
+    Value: !Ref KibanaUsername
+  WazuhServerDNS:
+    Description: The DNS name for agents communication with Wazuh server
+    Value: !Ref WazuhDataRecordSet
+  WazuhServerPort:
+    Description: Port number for agents communication with Wazuh server
+    Value: !Ref WazuhServerPort
+  WazuhRegistrationPort:
+    Description: Port number for agents registration with Wazuh server
+    Value: !Ref WazuhRegistrationPort
+  WazuhRegistrationDNS:
+    Description: The DNS name for agents registration with Wazuh server
+    Value: !Ref WazuhRegistrationRecordSet
+  WazuhApiPort:
+    Description: Port number used by Wazuh API
+    Value: !Ref WazuhApiPort
+  WazuhApiAdminUsername:
+    Description: Admin username for Wazuh API
+    Value: !Ref WazuhApiAdminUsername
+  KeyPairName:
+    Description: Key pair used for SSH access
+    Value: !Ref KeyPairName
+  WazuhInstanceType:
+    Description: Wazuh servers instance type
+    Value: !Ref WazuhInstanceType
+  ElasticInstanceType:
+    Description: Elasticsearch data nodes instance type
+    Value: !Ref ElasticInstanceType
+  KibanaInstanceType:
+    Description: Kibana server instance type
+    Value: !Ref KibanaInstanceType
+  SSLCertificateARN:
+    Description: SSL Certificate for Kibana access via HTTPS
+    Value: !Ref SSLCertificateARN
