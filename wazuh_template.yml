@@ -386,6 +386,8 @@ Resources:
         - !Ref SubnetElastic
       SecurityGroups:
         - !Ref ElbElasticSecurityGroup
+      ConnectionSettings:
+        IdleTimeout: '300'
       HealthCheck:
         Target: !Join
           - ''
@@ -424,6 +426,8 @@ Resources:
         - !Ref SubnetElastic
       SecurityGroups:
         - !Ref ElbLogstashSecurityGroup
+      ConnectionSettings:
+        IdleTimeout: '300'
       HealthCheck:
         Target: TCP:5000
         HealthyThreshold: '3'
@@ -459,6 +463,8 @@ Resources:
         - !Ref SubnetElastic
       SecurityGroups:
         - !Ref ElbKibanaSecurityGroup
+      ConnectionSettings:
+        IdleTimeout: '1200'
       Instances:
         - Ref: KibanaInstance
       HealthCheck:
@@ -498,6 +504,8 @@ Resources:
         - !Ref SubnetWazuh
       SecurityGroups:
         - !Ref ElbWazuhSecurityGroup
+      ConnectionSettings:
+        IdleTimeout: '1200'
       Instances:
         - Ref: WazuhMasterInstance
         - Ref: WazuhWorkerInstance

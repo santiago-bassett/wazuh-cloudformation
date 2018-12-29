@@ -47,24 +47,25 @@ EOF
 # Installing wazuh-manager
 yum -y install wazuh-manager-${wazuh_version}
 chkconfig --add wazuh-manager
+manager_config="/var/ossec/etc/ossec.conf"
 
 # Enable registration service (only for master node)
 /var/ossec/bin/ossec-control enable auth
 
 # Change manager protocol to tcp, to be used by Amazon ELB
-sed -i "s/<protocol>udp<\/protocol>/<protocol>tcp<\/protocol>/" /var/ossec/etc/ossec.conf
+sed -i "s/<protocol>udp<\/protocol>/<protocol>tcp<\/protocol>/" ${manager_config}
 
 # Set manager ports for registration and agents communication
-sed -i "s/<port>1515<\/port>/<port>${wazuh_registration_port}<\/port>/" /var/ossec/etc/ossec.conf
-sed -i "s/<port>1514<\/port>/<port>${wazuh_server_port}<\/port>/" /var/ossec/etc/ossec.conf
+sed -i "s/<port>1515<\/port>/<port>${wazuh_registration_port}<\/port>/" ${manager_config}
+sed -i "s/<port>1514<\/port>/<port>${wazuh_server_port}<\/port>/" ${manager_config}
 
 # Installing Python Cryptography module for the cluster
 pip install cryptography
 
 # Configuring cluster section
-sed -i '/<cluster>/,/<\/cluster>/d' /var/ossec/etc/ossec.conf
+sed -i '/<cluster>/,/<\/cluster>/d' ${manager_config}
 
-cat >> /var/ossec/etc/ossec.conf << EOF
+cat >> ${manager_config} << EOF
 <ossec_config>
   <cluster>
     <name>wazuh</name>
@@ -81,6 +82,19 @@ cat >> /var/ossec/etc/ossec.conf << EOF
   </cluster>
 </ossec_config>
 EOF
+
+# Disabling agent components and cleaning configuration file
+sed -i '/<rootcheck>/,/<\/rootcheck>/d' ${manager_config}
+sed -i '/<wodle name="open-scap">/,/<\/wodle>/d' ${manager_config}
+sed -i '/<wodle name="cis-cat">/,/<\/wodle>/d' ${manager_config}
+sed -i '/<wodle name="osquery">/,/<\/wodle>/d' ${manager_config}
+sed -i '/<wodle name="syscollector">/,/<\/wodle>/d' ${manager_config}
+sed -i '/<syscheck>/,/<\/syscheck>/d' ${manager_config}
+sed -i '/<localfile>/,/<\/localfile>/d' ${manager_config}
+sed -i '/<auth>/,/<\/auth>/d' ${manager_config}
+sed -i '/<!--.*-->/d' ${manager_config}
+sed -i '/<!--/,/-->/d' ${manager_config}
+sed -i '/^$/d' ${manager_config}
 
 # Restart wazuh-manager
 service wazuh-manager restart
