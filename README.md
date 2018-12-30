@@ -27,7 +27,7 @@ Each data node has a Logstash instance, that is used to receive data form the ma
 
 None of these instances are directly accessible from the Internet, although they can be reached jumping through the Kibana system, that has a public SSH service.
 
-# Kibana server configuration
+## Kibana server configuration
 
 Kibana server runs an instance of Elasticsearch (acting as a client node), an instance of Kibana (with Wazuh plugin installed and configured), and an instance of Nginx (used to provide SSL encryption and basic HTTP authentication).
 
@@ -47,7 +47,7 @@ In addition, the Kibana server takes care of:
 
 Kibana server is reachable from the Internet, directly via its own Elastic IP, or through an internet-facing load balancer. The load balancer can be used, optionally, to add a valid Amazon SSL Certificate for HTTPS communications.
 
-# Wazuh cluster configuration
+## Wazuh cluster configuration
 
 The Wazuh cluster deployed has one master node (providing API and registration server) and one worker node. 
 
@@ -69,7 +69,7 @@ New agents can make use of the Wazuh master public Elastic IP address for regist
 
 Once registered, new agents can connect to the Wazuh cluster, via TCP, using the load balancer public IP address.
 
-# Optional DNS records
+## Optional DNS records
 
 A parent domain (e.g. mycompany.com) and subdomain (e.g. wazuh) can be specified. In this example, this is what would be used for communications:
 
@@ -93,4 +93,6 @@ Then, on the linux agent, the /var/ossec/etc/ossec.conf would include the config
       <protocol>tcp</protocol>
     </server>
 
-# AWS environment created by cloud formation template
+## AWS environment created by cloud formation template
+
+![wazuh template] (images/wazuh_template-designer.png)
