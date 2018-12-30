@@ -95,4 +95,4 @@ Then, on the linux agent, the /var/ossec/etc/ossec.conf would include the config
 
 ## AWS environment created by cloud formation template
 
-![wazuh template] (images/wazuh_template-designer.png)
+![Wazuh template](images/wazuh_template-designer.png)
